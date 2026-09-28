@@ -1,3 +1,66 @@
 spring:
   application:
     name: finance-ai-copilot
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${NEON_JDBC_URL:jdbc:postgresql://localhost:5432/finance_ai?sslmode=require}
+    username: ${NEON_DB_USER:finance_ai}
+    password: ${NEON_DB_PASSWORD:}
+  ai:
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY:}
+        chat:
+          model: ${GEMINI_CHAT_MODEL:gemini-2.0-flash}
+          temperature: 0.2
+        embedding:
+          options:
+            model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
+    vectorstore:
+      pgvector:
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE
+        dimensions: ${EMBEDDING_DIMENSIONS:768}
+        initialize-schema: false
+        table-name: ai_financial_vectors
+    mcp:
+      client:
+        enabled: ${MCP_CLIENT_ENABLED:false}
+        name: finance-ai-neon-client
+        type: SYNC
+        request-timeout: 20s
+        streamable-http:
+          connections:
+            neon-postgres:
+              url: ${NEON_MCP_URL:http://localhost:3000}
+
+app:
+  vector:
+    datasource:
+      jdbc-url: ${NEON_JDBC_URL:jdbc:postgresql://localhost:5432/finance_ai?sslmode=require}
+      username: ${NEON_DB_USER:finance_ai}
+      password: ${NEON_DB_PASSWORD:}
+      maximum-pool-size: 10
+  legacy:
+    datasource:
+      jdbc-url: ${LEGACY_DB_URL:jdbc:postgresql://localhost:5432/legacy}
+      username: ${LEGACY_DB_USER:finance_ai_reader}
+      password: ${LEGACY_DB_PASSWORD:}
+      read-only: true
+      maximum-pool-size: 3
+    query: ${LEGACY_FINANCIAL_ENTRIES_QUERY:SELECT id, usuario_id, data, valor, tipo, categoria, descricao FROM lancamentos WHERE atualizado_em > :updatedSince ORDER BY atualizado_em}
+  ai:
+    google-embeddings:
+      api-key: ${GEMINI_API_KEY:}
+      base-url: https://generativelanguage.googleapis.com
+      model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
+      dimensions: ${EMBEDDING_DIMENSIONS:768}
+    ingestion:
+      fixed-delay: ${AI_INGESTION_DELAY:PT5M}
+      lookback-days: ${AI_INGESTION_LOOKBACK_DAYS:2}
+      batch-size: 100
+
+server:
+  shutdown: graceful
