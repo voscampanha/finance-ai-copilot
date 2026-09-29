@@ -14,9 +14,12 @@ operações de escrita no banco legado.
 
 ## Configuração
 
-Copie `.env.example` para o ambiente de execução e forneça `GEMINI_API_KEY`, as credenciais Neon
-e as credenciais de leitura do legado. A aplicação usa Java 25, virtual threads e
-`text-embedding-004` por padrão.
+Copie `.env.example` para `.env` na raiz do projeto e preencha `GEMINI_API_KEY`, as credenciais
+Neon e as credenciais de leitura do legado. O `application.yaml` importa esse arquivo como
+propriedades; ao iniciar pelo VS Code, configure o diretório de trabalho como a raiz do projeto.
+Também é possível fornecer essas variáveis diretamente no ambiente, especialmente em produção.
+`GEMINI_CHAT_MODEL` e `GEMINI_EMBEDDING_MODEL` configuram os modelos; os padrões são
+`gemini-2.0-flash` e `text-embedding-004`, respectivamente. A aplicação usa Java 25 e virtual threads.
 
 O MCP é configurado por `spring.ai.mcp.client.streamable-http.connections.neon-postgres.url`.
 Deixe `MCP_CLIENT_ENABLED=false` até que exista um servidor MCP compatível e autenticado. O
