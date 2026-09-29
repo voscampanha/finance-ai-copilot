@@ -26,3 +26,5 @@ replay_pid*
 .env
 .vscode/
 /target/
+.neon
+node_modules/

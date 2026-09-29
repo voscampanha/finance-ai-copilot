@@ -16,7 +16,8 @@ spring:
           model: ${GEMINI_CHAT_MODEL:gemini-2.0-flash}
           temperature: 0.2
         embedding:
-          options:
+          api-key: ${GEMINI_API_KEY:}
+          text:
             model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
     vectorstore:
       pgvector:
@@ -50,7 +51,7 @@ app:
       password: ${LEGACY_DB_PASSWORD:}
       read-only: true
       maximum-pool-size: 3
-    query: ${LEGACY_FINANCIAL_ENTRIES_QUERY:SELECT id, usuario_id, data, valor, tipo, categoria, descricao FROM lancamentos WHERE atualizado_em > :updatedSince ORDER BY atualizado_em}
+    query: ${LEGACY_FINANCIAL_ENTRIES_QUERY:SELECT id, property_id, description, value, "date" AS transaction_date, created_at, updated_at, category_id, finance_account_id, tags, attachment FROM finance.transactions WHERE updated_at > :updatedSince ORDER BY updated_at}
   ai:
     google-embeddings:
       api-key: ${GEMINI_API_KEY:}
