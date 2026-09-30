@@ -55,7 +55,7 @@ app:
       password: ${LEGACY_DB_PASSWORD:}
       read-only: true
       maximum-pool-size: 3
-    query: ${LEGACY_FINANCIAL_ENTRIES_QUERY:SELECT id, property_id, description, value, `date` AS transaction_date, created_at, updated_at, category_id, finance_account_id, tags FROM transactions WHERE updated_at > :updatedSince ORDER BY updated_at}
+    query: classpath:sqls/ingestion-transactions.sql
   ai:
     google-embeddings:
       api-key: ${GEMINI_API_KEY:}
