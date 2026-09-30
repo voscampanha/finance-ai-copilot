@@ -15,7 +15,7 @@ spring:
       genai:
         api-key: ${GEMINI_API_KEY:}
         chat:
-          model: ${GEMINI_CHAT_MODEL:gemini-2.0-flash}
+          model: ${GEMINI_CHAT_MODEL:gemini-3.8-flash}
           temperature: 0.2
         embedding:
           api-key: ${GEMINI_API_KEY:}
@@ -47,6 +47,7 @@ app:
       username: ${NEON_DB_USER:finance_ai}
       password: ${NEON_DB_PASSWORD:}
       maximum-pool-size: 10
+      max-lifetime: ${NEON_POOL_MAX_LIFETIME:240000}
   legacy:
     datasource:
       jdbc-url: ${LEGACY_DB_URL:jdbc:mysql://localhost:3306/legacy}
