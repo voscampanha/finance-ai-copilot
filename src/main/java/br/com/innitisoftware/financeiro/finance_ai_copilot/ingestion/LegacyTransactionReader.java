@@ -37,8 +37,9 @@ public class LegacyTransactionReader {
                         rs.getObject("updated_at", LocalDateTime.class),
                         rs.getString("category_id"),
                         rs.getString("finance_account_id"),
-                        rs.getString("tags"),
-                        rs.getString("attachment")
+                        rs.getString("tags")
+                        // ,
+                        // rs.getString("attachment")
                 )
         );
     }

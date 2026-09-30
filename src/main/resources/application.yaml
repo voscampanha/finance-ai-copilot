@@ -7,7 +7,7 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: ${NEON_JDBC_URL:jdbc:postgresql://localhost:5432/finance_ai?sslmode=require}
+    url: ${NEON_JDBC_URL:jdbc:postgresql://localhost:5432/finance_ai?sslmode=disable}
     username: ${NEON_DB_USER:finance_ai}
     password: ${NEON_DB_PASSWORD:}
   ai:
@@ -21,13 +21,14 @@ spring:
           api-key: ${GEMINI_API_KEY:}
           text:
             model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
+            dimensions: ${EMBEDDING_DIMENSIONS:768}
     vectorstore:
       pgvector:
         index-type: HNSW
         distance-type: COSINE_DISTANCE
         dimensions: ${EMBEDDING_DIMENSIONS:768}
         initialize-schema: false
-        table-name: ai_financial_vectors
+        table-name: transaction_embeddings
     mcp:
       client:
         enabled: ${MCP_CLIENT_ENABLED:false}
@@ -42,23 +43,23 @@ spring:
 app:
   vector:
     datasource:
-      jdbc-url: ${NEON_JDBC_URL:jdbc:postgresql://localhost:5432/finance_ai?sslmode=require}
+      jdbc-url: ${NEON_JDBC_URL:jdbc:postgresql://localhost:5432/finance_ai?sslmode=disable}
       username: ${NEON_DB_USER:finance_ai}
       password: ${NEON_DB_PASSWORD:}
       maximum-pool-size: 10
   legacy:
     datasource:
-      jdbc-url: ${LEGACY_DB_URL:jdbc:postgresql://localhost:5432/legacy}
+      jdbc-url: ${LEGACY_DB_URL:jdbc:mysql://localhost:3306/legacy}
       username: ${LEGACY_DB_USER:finance_ai_reader}
       password: ${LEGACY_DB_PASSWORD:}
       read-only: true
       maximum-pool-size: 3
-    query: ${LEGACY_FINANCIAL_ENTRIES_QUERY:SELECT id, property_id, description, value, "date" AS transaction_date, created_at, updated_at, category_id, finance_account_id, tags, attachment FROM finance.transactions WHERE updated_at > :updatedSince ORDER BY updated_at}
+    query: ${LEGACY_FINANCIAL_ENTRIES_QUERY:SELECT id, property_id, description, value, `date` AS transaction_date, created_at, updated_at, category_id, finance_account_id, tags FROM transactions WHERE updated_at > :updatedSince ORDER BY updated_at}
   ai:
     google-embeddings:
       api-key: ${GEMINI_API_KEY:}
       base-url: https://generativelanguage.googleapis.com
-      model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
+      model: ${GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
       dimensions: ${EMBEDDING_DIMENSIONS:768}
     ingestion:
       fixed-delay: ${AI_INGESTION_DELAY:PT5M}

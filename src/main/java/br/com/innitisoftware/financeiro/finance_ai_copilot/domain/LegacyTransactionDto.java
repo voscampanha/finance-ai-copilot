@@ -37,9 +37,10 @@ public record LegacyTransactionDto(
         String financeAccountId,
 
         @JsonProperty("tags")
-        String tags,
+        String tags
+        // ,
 
-        @JsonProperty("attachment")
-        String attachment
+        // @JsonProperty("attachment")
+        // String attachment
 ) {
 }

@@ -29,10 +29,10 @@ public class FinancialIngestionService {
         this.properties = properties;
     }
 
-    @Scheduled(fixedDelayString = "${app.ai.ingestion.fixed-delay}", initialDelayString = "PT30S")
-    public void scheduledSync() {
-        sync();
-    }
+    // @Scheduled(fixedDelayString = "${app.ai.ingestion.fixed-delay}", initialDelayString = "PT30S")
+    // public void scheduledSync() {
+    //     sync();
+    // }
 
     public int sync() {
         List<LegacyTransactionDto> entries = reader.findUpdatedSince(
