@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS transaction_embeddings (
     -- O texto narrativo e sanitizado da transação
     content TEXT NOT NULL,
     
-    -- O vetor gerado pelo Gemini text-embedding-004 (768 dimensões)
+    -- O vetor gerado pelo Ollama nomic-embed-text (768 dimensões)
     embedding vector(768) NOT NULL,
     
     -- Metadados em formato JSONB para filtros rápidos (usuario_id, category_id, data, etc.)

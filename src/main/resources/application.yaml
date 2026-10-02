@@ -11,17 +11,19 @@ spring:
     username: ${NEON_DB_USER:finance_ai}
     password: ${NEON_DB_PASSWORD:}
   ai:
+    model:
+      chat: google-genai
+      embedding: ollama
     google:
       genai:
         api-key: ${GEMINI_API_KEY:}
         chat:
           model: ${GEMINI_CHAT_MODEL:gemini-3.8-flash}
           temperature: 0.2
-        embedding:
-          api-key: ${GEMINI_API_KEY:}
-          text:
-            model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
-            dimensions: ${EMBEDDING_DIMENSIONS:768}
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      embedding:
+        model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text}
     vectorstore:
       pgvector:
         index-type: HNSW
@@ -57,15 +59,11 @@ app:
       maximum-pool-size: 3
     query: classpath:sqls/ingestion-transactions.sql
   ai:
-    google-embeddings:
-      api-key: ${GEMINI_API_KEY:}
-      base-url: https://generativelanguage.googleapis.com
-      model: ${GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
-      dimensions: ${EMBEDDING_DIMENSIONS:768}
     ingestion:
       fixed-delay: ${AI_INGESTION_DELAY:PT5M}
       lookback-days: ${AI_INGESTION_LOOKBACK_DAYS:2}
       batch-size: 100
+      request-delay: ${AI_INGESTION_REQUEST_DELAY:PT1S}
 
 server:
   shutdown: graceful

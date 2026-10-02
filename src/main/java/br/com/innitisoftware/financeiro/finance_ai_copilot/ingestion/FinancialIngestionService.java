@@ -40,6 +40,14 @@ public class FinancialIngestionService {
             List<Document> batch = entries.subList(start, Math.min(start + properties.batchSize(), entries.size()))
                     .stream().map(formatter::toDocument).toList();
             vectorStore.add(batch);
+            // if (start + properties.batchSize() < entries.size() && !properties.requestDelay().isZero()) {
+            //     try {
+            //         Thread.sleep(properties.requestDelay());
+            //     } catch (InterruptedException exception) {
+            //         Thread.currentThread().interrupt();
+            //         throw new IllegalStateException("Ingestão interrompida durante a pausa entre lotes", exception);
+            //     }
+            // }
         }
         return entries.size();
     }

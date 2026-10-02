@@ -1,9 +1,11 @@
 package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor;
 
+import br.com.innitisoftware.financeiro.finance_ai_copilot.domain.FinancialToolsDTOs;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.security.TenantVectorStoreFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.tool.function.FunctionToolCallback;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
@@ -19,15 +21,18 @@ public class FinancialAdvisorService {
     private final VectorStore vectorStore;
     private final TenantVectorStoreFilter tenantFilter;
     private final FinancialMcpTools financialTools;
+        private final FunctionToolCallback<FinancialToolsDTOs.CategoryStatsRequest, FinancialToolsDTOs.CategoryStatsResponse> calculateCategoryStatsToolCallback;
 
     public FinancialAdvisorService(ChatClient chatClient,
                                    VectorStore vectorStore,
                                    TenantVectorStoreFilter tenantFilter,
-                                   FinancialMcpTools financialTools) {
+                                   FinancialMcpTools financialTools,
+                                   FunctionToolCallback<FinancialToolsDTOs.CategoryStatsRequest, FinancialToolsDTOs.CategoryStatsResponse> calculateCategoryStatsToolCallback) {
         this.chatClient = chatClient;
         this.vectorStore = vectorStore;
         this.tenantFilter = tenantFilter;
         this.financialTools = financialTools;
+        this.calculateCategoryStatsToolCallback = calculateCategoryStatsToolCallback;
     }
 
     public String answer(String question) {
@@ -44,9 +49,11 @@ public class FinancialAdvisorService {
                 result -> "contexto_montado, caracteres=" + result.length()
                         + ", fallback=" + documents.isEmpty());
         return timedStage("Geração da resposta", () -> chatClient.prompt()
-                        .tools(financialTools)
-                        .system("Você é um consultor financeiro. Responda em português, usando somente o contexto fornecido. "
-                                + "Não invente dados, não exponha identificadores internos e deixe claro quando não houver evidência.")
+                        .tools(financialTools, calculateCategoryStatsToolCallback)
+                        .system("Você é um consultor financeiro. Responda em português. "
+                                + "Para perguntas sobre lançamentos específicos ou detalhes contextuais, use os documentos do Vector Store. "
+                                + "Para perguntas analíticas de totais, médias, somatórios e frequência de compras, acione a ferramenta 'calculateCategoryStats'. "
+                                + "Use somente informações disponíveis nas fontes consultadas. Não invente dados, não exponha identificadores internos e deixe claro quando não houver evidência.")
                         .user(user -> user.text("Contexto financeiro:\n{context}\n\nPergunta: {question}")
                                 .param("context", context)
                                 .param("question", question))
