@@ -12,7 +12,7 @@ spring:
     password: ${NEON_DB_PASSWORD:}
   ai:
     model:
-      chat: google-genai
+      chat: openai
       embedding: ollama
     google:
       genai:
@@ -23,12 +23,19 @@ spring:
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       embedding:
-        model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text}
+        model: ${OLLAMA_EMBEDDING_MODEL:qwen3-embedding:0.6b}
+        keep-alive: ${OLLAMA_EMBEDDING_KEEP_ALIVE:30m}
+    openai:
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY:}
+      chat:
+        options:
+          model: ${DEEPSEEK_CHAT_MODEL:deepseek-flash}
     vectorstore:
       pgvector:
         index-type: HNSW
         distance-type: COSINE_DISTANCE
-        dimensions: ${EMBEDDING_DIMENSIONS:768}
+        dimensions: ${EMBEDDING_DIMENSIONS:1024}
         initialize-schema: false
         table-name: transaction_embeddings
     mcp:
@@ -49,7 +56,14 @@ app:
       username: ${NEON_DB_USER:finance_ai}
       password: ${NEON_DB_PASSWORD:}
       maximum-pool-size: 10
+      # Retire connections well before Neon/PgBouncer closes an idle session (~5 min).
       max-lifetime: ${NEON_POOL_MAX_LIFETIME:240000}
+      # Ping idle connections so Neon-side closures are detected proactively,
+      # not when a connection is borrowed (which logs "Failed to validate connection").
+      keepalive-time: ${NEON_POOL_KEEPALIVE_TIME:120000}
+      idle-timeout: ${NEON_POOL_IDLE_TIMEOUT:60000}
+      validation-timeout: 5000
+      connection-timeout: 30000
   legacy:
     datasource:
       jdbc-url: ${LEGACY_DB_URL:jdbc:mysql://localhost:3306/legacy}

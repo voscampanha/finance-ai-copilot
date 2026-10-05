@@ -11,8 +11,8 @@ CREATE TABLE IF NOT EXISTS transaction_embeddings (
     -- O texto narrativo e sanitizado da transação
     content TEXT NOT NULL,
     
-    -- O vetor gerado pelo Ollama nomic-embed-text (768 dimensões)
-    embedding vector(768) NOT NULL,
+    -- O vetor gerado pelo Ollama qwen3-embedding:0.6b (1024 dimensões)
+    embedding vector(1024) NOT NULL,
     
     -- Metadados em formato JSONB para filtros rápidos (usuario_id, category_id, data, etc.)
     metadata JSONB NOT NULL,

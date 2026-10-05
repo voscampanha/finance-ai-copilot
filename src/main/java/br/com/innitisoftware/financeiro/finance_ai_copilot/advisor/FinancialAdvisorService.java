@@ -1,65 +1,92 @@
 package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor;
 
-import br.com.innitisoftware.financeiro.finance_ai_copilot.domain.FinancialToolsDTOs;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.security.TenantVectorStoreFilter;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.security.UserIdentity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.tool.function.FunctionToolCallback;
+import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 @Service
 public class FinancialAdvisorService {
         private static final Logger LOGGER = LoggerFactory.getLogger(FinancialAdvisorService.class);
+        private static final double SIMILARITY_THRESHOLD = 0.7;
 
     private final ChatClient chatClient;
     private final VectorStore vectorStore;
-    private final TenantVectorStoreFilter tenantFilter;
     private final FinancialMcpTools financialTools;
-        private final FunctionToolCallback<FinancialToolsDTOs.CategoryStatsRequest, FinancialToolsDTOs.CategoryStatsResponse> calculateCategoryStatsToolCallback;
+    private final FinancialToolsConfig financialToolsConfig;
+    private final UserIdentity userIdentity;
+        private final QueryRouter queryRouter;
 
     public FinancialAdvisorService(ChatClient chatClient,
                                    VectorStore vectorStore,
-                                   TenantVectorStoreFilter tenantFilter,
                                    FinancialMcpTools financialTools,
-                                   FunctionToolCallback<FinancialToolsDTOs.CategoryStatsRequest, FinancialToolsDTOs.CategoryStatsResponse> calculateCategoryStatsToolCallback) {
+                                   FinancialToolsConfig financialToolsConfig,
+                                   UserIdentity userIdentity,
+                                   QueryRouter queryRouter) {
         this.chatClient = chatClient;
         this.vectorStore = vectorStore;
-        this.tenantFilter = tenantFilter;
         this.financialTools = financialTools;
-        this.calculateCategoryStatsToolCallback = calculateCategoryStatsToolCallback;
+        this.financialToolsConfig = financialToolsConfig;
+        this.userIdentity = userIdentity;
+        this.queryRouter = queryRouter;
     }
 
     public String answer(String question) {
-        var documents = timedStage("Busca vetorial", () -> vectorStore.similaritySearch(SearchRequest.builder()
-                        .query(question)
-                        .topK(8)
-                        // .filterExpression(tenantFilter.forAuthenticatedUser())
-                        .build()),
-                result -> "documentos_encontrados=" + result.size());
-        String context = timedStage("Montagem do contexto", () -> documents.stream()
-                        .map(document -> document.getText())
-                        .reduce((left, right) -> left + "\n" + right)
-                        .orElse("Nenhum registro financeiro relevante foi encontrado."),
+        QueryRouter.QueryType queryType = timedStage("Roteamento", () -> queryRouter.classify(question),
+                result -> "tipo=" + result);
+        List<Document> documents = queryType == QueryRouter.QueryType.ANALYTICAL
+                ? List.of()
+                : timedStage("Busca vetorial", () -> vectorStore.similaritySearch(SearchRequest.builder()
+                                .query(question)
+                                .topK(8 )
+                                // .similarityThreshold(SIMILARITY_THRESHOLD)
+                                // .filterExpression(tenantFilter.forAuthenticatedUser())
+                                .build()).stream()
+                        // .filter(document -> document.getScore() != null
+                        //         && document.getScore() >= SIMILARITY_THRESHOLD)
+                        .toList(),
+                result -> "documentos_relevantes=" + result.size());
+        String context = queryType == QueryRouter.QueryType.ANALYTICAL
+                ? ""
+                : timedStage("Montagem do contexto", () -> documents.stream()
+                                .map(document -> document.getText())
+                                .reduce((left, right) -> left + "\n" + right)
+                                .orElse("Nenhum registro financeiro relevante foi encontrado."),
                 result -> "contexto_montado, caracteres=" + result.length()
                         + ", fallback=" + documents.isEmpty());
         return timedStage("Geração da resposta", () -> chatClient.prompt()
-                        .tools(financialTools, calculateCategoryStatsToolCallback)
-                        .system("Você é um consultor financeiro. Responda em português. "
-                                + "Para perguntas sobre lançamentos específicos ou detalhes contextuais, use os documentos do Vector Store. "
-                                + "Para perguntas analíticas de totais, médias, somatórios e frequência de compras, acione a ferramenta 'calculateCategoryStats'. "
-                                + "Use somente informações disponíveis nas fontes consultadas. Não invente dados, não exponha identificadores internos e deixe claro quando não houver evidência.")
+                        .tools(financialTools, financialToolsConfig)
+                        // .toolContext(Map.of("userId", userIdentity.authenticatedUserId()))
+                        .system(systemInstructions(queryType))
                         .user(user -> user.text("Contexto financeiro:\n{context}\n\nPergunta: {question}")
                                 .param("context", context)
                                 .param("question", question))
                         .call()
                         .content(),
                 result -> "resposta_gerada, caracteres=" + (result == null ? 0 : result.length()));
+    }
+
+    private String systemInstructions(QueryRouter.QueryType queryType) {
+        String routingInstruction = queryType == QueryRouter.QueryType.ANALYTICAL
+                                ? "A pergunta é analítica. Chame 'calculateCategoryStats' antes de responder."
+                                : "A pergunta é contextual. Use os documentos fornecidos no contexto e chame 'searchFinancialContext' quando eles forem insuficientes.";
+        return "Você é um consultor financeiro pessoal. Responda SEMPRE em português do Brasil, de forma objetiva e clara. "
+                + "Para QUALQUER pergunta sobre totais, somas, médias, contagens, frequências ou agregações numéricas, "
+                + "DEVE chamar a ferramenta 'calculateCategoryStats' para obter os resultados e usá-los na resposta. "
+                + "NUNCA calcule mentalmente nem invente valores. "
+                + "Para perguntas sobre contexto, use os documentos fornecidos no contexto. "
+                + "Se o contexto estiver vazio e a pergunta não for analítica, diga explicitamente que não há evidência suficiente. "
+                + "NUNCA exponha IDs internos, nomes de tabelas, colunas ou detalhes técnicos do banco. "
+                + "Se uma ferramenta retornar erro ou vazio, informe o usuário sem inventar dados. "
+                + "Formate valores monetários em R$ com duas casas decimais. " + routingInstruction;
     }
 
     private <T> T timedStage(String stage, Supplier<T> operation, Function<T, String> resultSummary) {
