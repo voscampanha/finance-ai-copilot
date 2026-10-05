@@ -31,12 +31,11 @@ public class FinancialToolsConfig {
     public String calculateCategoryStats(
             @ToolParam(description = "Nome da categoria ou grupo, por exemplo Alimentação ou Transporte") String category,
             @ToolParam(description = "Data inicial do período no formato YYYY-MM-DD") String startDate,
-            @ToolParam(description = "Data final do período no formato YYYY-MM-DD") String endDate) {
-            // ,
-            // ToolContext toolContext) {
+            @ToolParam(description = "Data final do período no formato YYYY-MM-DD") String endDate,
+            ToolContext toolContext) {
         long startedAt = System.nanoTime();
         LOGGER.info("Tool 'calculateCategoryStats' iniciada");
-        //long userId = authenticatedUserId(toolContext);
+        long userId = authenticatedUserId(toolContext);
         String sql = """
                 SELECT 
                     COUNT(t.id) AS total_count,
@@ -47,14 +46,14 @@ public class FinancialToolsConfig {
                 LEFT JOIN `groups` g ON c.group_id = g.id
                 LEFT JOIN finance_accounts fa ON t.finance_account_id = fa.id
                 LEFT JOIN users u ON fa.user_id = u.id
-                                WHERE
-                                    (LOWER(c.name) LIKE LOWER(CONCAT('%', :categoryName, '%'))
+                    WHERE u.id = :userId AND
+                    (LOWER(c.name) LIKE LOWER(CONCAT('%', :categoryName, '%'))
                     OR LOWER(g.name) LIKE LOWER(CONCAT('%', :categoryName, '%')))
                   AND t.date BETWEEN :startDate AND :endDate
             """;
 
         MapSqlParameterSource params = new MapSqlParameterSource()
-          //      .addValue("userId", userId)
+               .addValue("userId", userId)
                 .addValue("categoryName", category)
                 .addValue("startDate", startDate)
                 .addValue("endDate", endDate);
@@ -82,7 +81,7 @@ public class FinancialToolsConfig {
                 currencyFormat.format(stats.totalSum()), currencyFormat.format(stats.average()));
     }
 
-    private static long authenticatedUserId(ToolContext toolContext) {
+    static long authenticatedUserId(ToolContext toolContext) {
         Object value = toolContext.getContext().get(USER_ID_CONTEXT_KEY);
         if (value instanceof Number number) {
             return number.longValue();

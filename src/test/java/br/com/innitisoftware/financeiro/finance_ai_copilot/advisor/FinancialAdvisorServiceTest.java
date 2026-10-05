@@ -39,12 +39,12 @@ class FinancialAdvisorServiceTest {
         when(requestSpec.call()).thenReturn(responseSpec);
         when(responseSpec.content()).thenReturn("resposta");
         service = new FinancialAdvisorService(chatClient, vectorStore, financialTools,
-                financialToolsConfig, userIdentity, new QueryRouter());
+                financialToolsConfig, new QueryRouter());
     }
 
     @Test
     void analyticalQuestionsSkipVectorSearchAndSendEmptyContextWithTools() {
-        service.answer("Quanto gastei com mercado?");
+        service.answer("Quanto gastei com mercado?", 1);
 
         verify(vectorStore, never()).similaritySearch(any(SearchRequest.class));
         verify(requestSpec).tools(financialTools, financialToolsConfig);
@@ -67,7 +67,7 @@ class FinancialAdvisorServiceTest {
                 Document.builder().text("registro relevante").score(0.85).build(),
                 Document.builder().text("registro irrelevante").score(0.69).build()));
 
-        service.answer("O que foi a compra na Padaria Central?");
+        service.answer("O que foi a compra na Padaria Central?", 1);
 
         var requestCaptor = org.mockito.ArgumentCaptor.forClass(SearchRequest.class);
         verify(vectorStore).similaritySearch(requestCaptor.capture());

@@ -1,6 +1,6 @@
 package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor;
 
-import br.com.innitisoftware.financeiro.finance_ai_copilot.security.UserIdentity;
+// import br.com.innitisoftware.financeiro.finance_ai_copilot.security.UserIdentity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -10,36 +10,37 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 @Service
 public class FinancialAdvisorService {
         private static final Logger LOGGER = LoggerFactory.getLogger(FinancialAdvisorService.class);
-        private static final double SIMILARITY_THRESHOLD = 0.7;
+        // private static final double SIMILARITY_THRESHOLD = 0.7;
 
     private final ChatClient chatClient;
     private final VectorStore vectorStore;
     private final FinancialMcpTools financialTools;
     private final FinancialToolsConfig financialToolsConfig;
-    private final UserIdentity userIdentity;
+//     private final UserIdentity userIdentity;
         private final QueryRouter queryRouter;
 
     public FinancialAdvisorService(ChatClient chatClient,
                                    VectorStore vectorStore,
                                    FinancialMcpTools financialTools,
                                    FinancialToolsConfig financialToolsConfig,
-                                   UserIdentity userIdentity,
+                                //    UserIdentity userIdentity,
                                    QueryRouter queryRouter) {
         this.chatClient = chatClient;
         this.vectorStore = vectorStore;
         this.financialTools = financialTools;
         this.financialToolsConfig = financialToolsConfig;
-        this.userIdentity = userIdentity;
+        // this.userIdentity = userIdentity;
         this.queryRouter = queryRouter;
     }
 
-    public String answer(String question) {
+    public String answer(String question, long userId) {
         QueryRouter.QueryType queryType = timedStage("Roteamento", () -> queryRouter.classify(question),
                 result -> "tipo=" + result);
         List<Document> documents = queryType == QueryRouter.QueryType.ANALYTICAL
@@ -65,6 +66,7 @@ public class FinancialAdvisorService {
         return timedStage("Geração da resposta", () -> chatClient.prompt()
                         .tools(financialTools, financialToolsConfig)
                         // .toolContext(Map.of("userId", userIdentity.authenticatedUserId()))
+                        .toolContext(Map.of("userId", userId))
                         .system(systemInstructions(queryType))
                         .user(user -> user.text("Contexto financeiro:\n{context}\n\nPergunta: {question}")
                                 .param("context", context)

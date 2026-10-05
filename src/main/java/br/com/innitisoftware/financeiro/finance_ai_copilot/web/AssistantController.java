@@ -24,7 +24,8 @@ public class AssistantController {
 
     @PostMapping("/chat")
     public ChatResponse chat(@Valid @RequestBody ChatRequest request) {
-        return new ChatResponse(advisor.answer(request.question()));
+        var userId = 4;
+        return new ChatResponse(advisor.answer(request.question(), userId));
     }
 
     @PostMapping("/sync")

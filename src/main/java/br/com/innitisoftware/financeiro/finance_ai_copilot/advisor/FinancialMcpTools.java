@@ -3,6 +3,7 @@ package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.security.TenantVectorStoreFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -21,13 +22,15 @@ public class FinancialMcpTools {
     }
 
     @Tool(description = "Busca registros financeiros do usuário autenticado por período ou categoria.")
-    public String searchFinancialContext(String query, String categoria, String dataInicial, String dataFinal) {
+    public String searchFinancialContext(String query, String categoria, String dataInicial, String dataFinal,
+                                         ToolContext toolContext) {
         long startedAt = System.nanoTime();
         LOGGER.info("Tool 'searchFinancialContext' iniciada");
         try {
             var documents = vectorStore.similaritySearch(SearchRequest.builder()
                 .query(query).topK(10)
-                .filterExpression(tenantFilter.forAuthenticatedUserAndCategory(categoria)).build());
+                .filterExpression(tenantFilter.forUserAndCategory(
+                    String.valueOf(FinancialToolsConfig.authenticatedUserId(toolContext)), categoria)).build());
             String result = documents.stream().map(document -> document.getText())
                 .reduce((left, right) -> left + "\n" + right).orElse("");
             LOGGER.info("Tool 'searchFinancialContext' concluída: documentos={}, tempo_ms={}",
@@ -40,7 +43,7 @@ public class FinancialMcpTools {
         }
     }
 
-        private long elapsedMillis(long startedAt) {
+    private long elapsedMillis(long startedAt) {
         return (System.nanoTime() - startedAt) / 1_000_000;
-        }
+    }
 }

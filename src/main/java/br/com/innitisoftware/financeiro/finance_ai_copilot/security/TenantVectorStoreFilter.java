@@ -14,7 +14,10 @@ public class TenantVectorStoreFilter {
     }
 
     public String forAuthenticatedUser() {
-        String usuarioId = userIdentity.authenticatedUserId();
+        return forUser(userIdentity.authenticatedUserId());
+    }
+
+    public String forUser(String usuarioId) {
         if (!SAFE_METADATA_VALUE.matcher(usuarioId).matches()) {
             throw new IllegalStateException("Identidade do usuário contém formato inválido");
         }
@@ -22,7 +25,11 @@ public class TenantVectorStoreFilter {
     }
 
     public String forAuthenticatedUserAndCategory(String categoria) {
-        String filter = forAuthenticatedUser();
+        return forUserAndCategory(userIdentity.authenticatedUserId(), categoria);
+    }
+
+    public String forUserAndCategory(String usuarioId, String categoria) {
+        String filter = forUser(usuarioId);
         if (categoria != null && !categoria.isBlank()) {
             filter += " AND categoria == '" + categoria.replace("'", "''") + "'";
         }
