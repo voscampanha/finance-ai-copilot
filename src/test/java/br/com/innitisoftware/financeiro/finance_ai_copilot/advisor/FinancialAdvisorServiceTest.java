@@ -24,8 +24,7 @@ import static org.mockito.Mockito.when;
 class FinancialAdvisorServiceTest {
     private final ChatClient chatClient = mock(ChatClient.class);
     private final VectorStore vectorStore = mock(VectorStore.class);
-    private final FinancialMcpTools financialTools = mock(FinancialMcpTools.class);
-    private final FinancialToolsConfig financialToolsConfig = mock(FinancialToolsConfig.class);
+    private final FinancialTools financialToolsConfig = mock(FinancialTools.class);
     private final UserIdentity userIdentity = mock(UserIdentity.class);
 
     private FinancialAdvisorService service;
@@ -38,7 +37,7 @@ class FinancialAdvisorServiceTest {
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(responseSpec);
         when(responseSpec.content()).thenReturn("resposta");
-        service = new FinancialAdvisorService(chatClient, vectorStore, financialTools,
+        service = new FinancialAdvisorService(chatClient, vectorStore,
                 financialToolsConfig, new QueryRouter());
     }
 
@@ -47,7 +46,7 @@ class FinancialAdvisorServiceTest {
         service.answer("Quanto gastei com mercado?", 1);
 
         verify(vectorStore, never()).similaritySearch(any(SearchRequest.class));
-        verify(requestSpec).tools(financialTools, financialToolsConfig);
+        verify(requestSpec).tools(financialToolsConfig);
         var systemPromptCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(requestSpec).system(systemPromptCaptor.capture());
         assertTrue(systemPromptCaptor.getValue().contains(
@@ -61,26 +60,4 @@ class FinancialAdvisorServiceTest {
             }));
     }
 
-    // @Test
-    void contextualQuestionsSearchFourDocumentsAndExcludeLowSimilarityResults() {
-        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(
-                Document.builder().text("registro relevante").score(0.85).build(),
-                Document.builder().text("registro irrelevante").score(0.69).build()));
-
-        service.answer("O que foi a compra na Padaria Central?", 1);
-
-        var requestCaptor = org.mockito.ArgumentCaptor.forClass(SearchRequest.class);
-        verify(vectorStore).similaritySearch(requestCaptor.capture());
-        assertEquals(8, requestCaptor.getValue().getTopK());
-        // assertEquals(0.7, requestCaptor.getValue().getSimilarityThreshold());
-        verify(requestSpec).tools(financialTools, financialToolsConfig);
-
-        verify(requestSpec).user(org.mockito.ArgumentMatchers
-            .<Consumer<ChatClient.PromptUserSpec>>argThat(userPrompt -> {
-                ChatClient.PromptUserSpec prompt = mock(ChatClient.PromptUserSpec.class, RETURNS_SELF);
-                userPrompt.accept(prompt);
-                verify(prompt).param(eq("context"), eq("registro relevante"));
-                return true;
-            }));
-    }
 }

@@ -19,19 +19,16 @@ public class FinancialAdvisorService {
 
     private final ChatClient chatClient;
     private final VectorStore vectorStore;
-    private final FinancialMcpTools financialTools;
-    private final FinancialToolsConfig financialToolsConfig;
+    private final FinancialTools financialTools;
     private final QueryRouter queryRouter;
 
     public FinancialAdvisorService(ChatClient chatClient,
                                    VectorStore vectorStore,
-                                   FinancialMcpTools financialTools,
-                                   FinancialToolsConfig financialToolsConfig,
+                                   FinancialTools financialTools,
                                    QueryRouter queryRouter) {
         this.chatClient = chatClient;
         this.vectorStore = vectorStore;
         this.financialTools = financialTools;
-        this.financialToolsConfig = financialToolsConfig;
         this.queryRouter = queryRouter;
     }
 
@@ -57,7 +54,7 @@ public class FinancialAdvisorService {
                         + ", fallback=" + documents.isEmpty());
         LOGGER.info("Contexto final para a pergunta: '{}'\n{}", question, context);
         return timedStage("Geração da resposta", () -> chatClient.prompt()
-                        .tools(financialTools, financialToolsConfig)
+                        .tools(financialTools)
                         .toolContext(Map.of("propertyId", propertyId))
                         .system(systemInstructions(queryType))
                         .user(user -> user.text("Contexto financeiro:\n{context}\n\nPergunta: {question}")

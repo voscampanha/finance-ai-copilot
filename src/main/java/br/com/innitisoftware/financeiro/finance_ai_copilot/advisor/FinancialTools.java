@@ -5,7 +5,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Component;
+
+import br.com.innitisoftware.financeiro.finance_ai_copilot.security.TenantVectorStoreFilter;
+
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
@@ -13,14 +18,19 @@ import java.text.NumberFormat;
 import java.util.Locale;
 
 @Component
-public class FinancialToolsConfig {
+public class FinancialTools {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(FinancialToolsConfig.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(FinancialTools.class);
     private static final String PROPERTY_ID_CONTEXT_KEY = "propertyId";
 
+    private final VectorStore vectorStore;
+    private final TenantVectorStoreFilter tenantFilter;
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
-    public FinancialToolsConfig(NamedParameterJdbcTemplate jdbcTemplate) {
+    public FinancialTools(NamedParameterJdbcTemplate jdbcTemplate,
+                                VectorStore vectorStore, TenantVectorStoreFilter tenantFilter) {
+        this.vectorStore = vectorStore;
+        this.tenantFilter = tenantFilter;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -79,6 +89,40 @@ public class FinancialToolsConfig {
         return "Categoria %s, período de %s a %s: %d lançamentos, total de %s e média de %s por lançamento."
             .formatted(category, startDate, endDate, stats.totalCount(),
                 currencyFormat.format(stats.totalSum()), currencyFormat.format(stats.average()));
+    }
+
+    @Tool(description = "Busca registros financeiros do usuário autenticado por período ou categoria. Use a pergunta original do usuário como query, sem resumir ou substituir por termos genéricos.")
+    public String searchFinancialContext(
+                                         @ToolParam(description = "Pergunta original do usuário que deve orientar a busca semântica; preserve o texto e os termos usados pelo usuário") String query,
+                                         @ToolParam(description = "Categoria ou grupo financeiro mencionado pelo usuário, se houver") String categoria,
+                                         @ToolParam(description = "Data inicial do período mencionado, no formato YYYY-MM-DD, se houver") String dataInicial,
+                                         @ToolParam(description = "Data final do período mencionado, no formato YYYY-MM-DD, se houver") String dataFinal,
+                                         ToolContext toolContext) {
+        long startedAt = System.nanoTime();
+        LOGGER.info("Tool 'searchFinancialContext' iniciada");
+        try {
+            var documents = vectorStore.similaritySearch(SearchRequest.builder()
+                .query(query).topK(10)
+                .filterExpression(tenantFilter.forUserCategoryAndDateRange(
+                    String.valueOf(FinancialTools.authenticatedPropertyId(toolContext)), categoria,
+                    dataInicial, dataFinal))
+                .build());
+            LOGGER.info("Query: {}, Categoria: {}, Data Inicial: {}, Data Final: {}, PropertyId: {}, Documentos encontrados: {}",
+                query, categoria, dataInicial, dataFinal, FinancialTools.authenticatedPropertyId(toolContext), documents.size());
+            String result = documents.stream().map(document -> document.getText())
+                .reduce((left, right) -> left + "\n" + right).orElse("");
+            LOGGER.info("Tool 'searchFinancialContext' concluída: documentos={}, tempo_ms={}",
+                documents.size(), elapsedMillis(startedAt));
+            return result;
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Tool 'searchFinancialContext' falhou: erro={}, tempo_ms={}",
+                exception.getClass().getSimpleName(), elapsedMillis(startedAt));
+            throw exception;
+        }
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return (System.nanoTime() - startedAt) / 1_000_000;
     }
 
     static long authenticatedPropertyId(ToolContext toolContext) {
