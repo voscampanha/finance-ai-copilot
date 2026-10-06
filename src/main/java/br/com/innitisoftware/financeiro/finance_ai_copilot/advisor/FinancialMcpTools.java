@@ -35,11 +35,11 @@ public class FinancialMcpTools {
             var documents = vectorStore.similaritySearch(SearchRequest.builder()
                 .query(query).topK(10)
                 .filterExpression(tenantFilter.forUserCategoryAndDateRange(
-                    String.valueOf(FinancialToolsConfig.authenticatedUserId(toolContext)), categoria,
+                    String.valueOf(FinancialToolsConfig.authenticatedPropertyId(toolContext)), categoria,
                     dataInicial, dataFinal))
                 .build());
-            LOGGER.info("Query: {}, Categoria: {}, Data Inicial: {}, Data Final: {}, UserId: {}, Documentos encontrados: {}",
-                query, categoria, dataInicial, dataFinal, FinancialToolsConfig.authenticatedUserId(toolContext), documents.size());
+            LOGGER.info("Query: {}, Categoria: {}, Data Inicial: {}, Data Final: {}, PropertyId: {}, Documentos encontrados: {}",
+                query, categoria, dataInicial, dataFinal, FinancialToolsConfig.authenticatedPropertyId(toolContext), documents.size());
             String result = documents.stream().map(document -> document.getText())
                 .reduce((left, right) -> left + "\n" + right).orElse("");
             LOGGER.info("Tool 'searchFinancialContext' concluída: documentos={}, tempo_ms={}",

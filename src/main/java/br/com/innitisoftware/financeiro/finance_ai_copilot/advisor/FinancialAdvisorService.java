@@ -1,6 +1,5 @@
 package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor;
 
-// import br.com.innitisoftware.financeiro.finance_ai_copilot.security.UserIdentity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -16,31 +15,27 @@ import java.util.function.Supplier;
 
 @Service
 public class FinancialAdvisorService {
-        private static final Logger LOGGER = LoggerFactory.getLogger(FinancialAdvisorService.class);
-        // private static final double SIMILARITY_THRESHOLD = 0.7;
+    private static final Logger LOGGER = LoggerFactory.getLogger(FinancialAdvisorService.class);
 
     private final ChatClient chatClient;
     private final VectorStore vectorStore;
     private final FinancialMcpTools financialTools;
     private final FinancialToolsConfig financialToolsConfig;
-//     private final UserIdentity userIdentity;
-        private final QueryRouter queryRouter;
+    private final QueryRouter queryRouter;
 
     public FinancialAdvisorService(ChatClient chatClient,
                                    VectorStore vectorStore,
                                    FinancialMcpTools financialTools,
                                    FinancialToolsConfig financialToolsConfig,
-                                //    UserIdentity userIdentity,
                                    QueryRouter queryRouter) {
         this.chatClient = chatClient;
         this.vectorStore = vectorStore;
         this.financialTools = financialTools;
         this.financialToolsConfig = financialToolsConfig;
-        // this.userIdentity = userIdentity;
         this.queryRouter = queryRouter;
     }
 
-    public String answer(String question, long userId) {
+    public String answer(String question, long propertyId) {
         QueryRouter.QueryType queryType = timedStage("Roteamento", () -> queryRouter.classify(question),
                 result -> "tipo=" + result);
         List<Document> documents = queryType == QueryRouter.QueryType.ANALYTICAL
@@ -48,11 +43,8 @@ public class FinancialAdvisorService {
                 : timedStage("Busca vetorial", () -> vectorStore.similaritySearch(SearchRequest.builder()
                                 .query(question)
                                 .topK(8 )
-                                // .similarityThreshold(SIMILARITY_THRESHOLD)
                                 // .filterExpression(tenantFilter.forAuthenticatedUser())
                                 .build()).stream()
-                        // .filter(document -> document.getScore() != null
-                        //         && document.getScore() >= SIMILARITY_THRESHOLD)
                         .toList(),
                 result -> "documentos_relevantes=" + result.size());
         String context = queryType == QueryRouter.QueryType.ANALYTICAL
@@ -66,8 +58,7 @@ public class FinancialAdvisorService {
         LOGGER.info("Contexto final para a pergunta: '{}'\n{}", question, context);
         return timedStage("Geração da resposta", () -> chatClient.prompt()
                         .tools(financialTools, financialToolsConfig)
-                        // .toolContext(Map.of("userId", userIdentity.authenticatedUserId()))
-                        .toolContext(Map.of("userId", userId))
+                        .toolContext(Map.of("propertyId", propertyId))
                         .system(systemInstructions(queryType))
                         .user(user -> user.text("Contexto financeiro:\n{context}\n\nPergunta: {question}")
                                 .param("context", context)

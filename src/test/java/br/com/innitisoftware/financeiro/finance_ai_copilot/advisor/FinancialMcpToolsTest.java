@@ -22,10 +22,10 @@ class FinancialMcpToolsTest {
     void searchUsesUserIdFromToolContext() {
         VectorStore vectorStore = mock(VectorStore.class);
         ToolContext toolContext = mock(ToolContext.class);
-        when(toolContext.getContext()).thenReturn(Map.of("userId", 42L));
+        when(toolContext.getContext()).thenReturn(Map.of("propertyId", 42L));
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
         FinancialMcpTools tools = new FinancialMcpTools(vectorStore,
-                new TenantVectorStoreFilter(() -> "different-user"));
+                new TenantVectorStoreFilter());
 
         String originalQuestion = "Quanto gastei com almoço em janeiro?";
         tools.searchFinancialContext(originalQuestion, "Food", "2026-01-01", "2026-01-31", toolContext);

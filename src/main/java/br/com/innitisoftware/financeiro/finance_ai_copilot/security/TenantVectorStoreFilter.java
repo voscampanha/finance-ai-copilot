@@ -8,38 +8,28 @@ import java.util.regex.Pattern;
 @Component
 public class TenantVectorStoreFilter {
     private static final Pattern SAFE_METADATA_VALUE = Pattern.compile("^[A-Za-z0-9._:@-]{1,128}$");
-    private final UserIdentity userIdentity;
 
-    public TenantVectorStoreFilter(UserIdentity userIdentity) {
-        this.userIdentity = userIdentity;
+    public TenantVectorStoreFilter() {
     }
 
-    public String forAuthenticatedUser() {
-        return forUser(userIdentity.authenticatedUserId());
-    }
-
-    public String forUser(String usuarioId) {
-        if (!SAFE_METADATA_VALUE.matcher(usuarioId).matches()) {
+    public String forUserProperty(String propertyId) {
+        if (!SAFE_METADATA_VALUE.matcher(propertyId).matches()) {
             throw new IllegalStateException("Identidade do usuário contém formato inválido");
         }
-        return "user_id == '" + usuarioId + "'";
+        return "property_id == '" + propertyId + "'";
     }
 
-    public String forAuthenticatedUserAndCategory(String categoria) {
-        return forUserAndCategory(userIdentity.authenticatedUserId(), categoria);
-    }
-
-    public String forUserAndCategory(String usuarioId, String categoria) {
-        String filter = forUser(usuarioId);
+    public String forUserAndCategory(String propertyId, String categoria) {
+        String filter = forUserProperty(propertyId);
         if (categoria != null && !categoria.isBlank()) {
             filter += " AND category_name == '" + categoria.replace("'", "''") + "'";
         }
         return filter;
     }
 
-    public String forUserCategoryAndDateRange(String usuarioId, String categoria,
+    public String forUserCategoryAndDateRange(String propertyId, String categoria,
                                               String dataInicial, String dataFinal) {
-        String filter = forUserAndCategory(usuarioId, categoria);
+        String filter = forUserAndCategory(propertyId, categoria);
         if (dataInicial != null && !dataInicial.isBlank()) {
             filter += " AND date >= '" + LocalDate.parse(dataInicial) + "'";
         }

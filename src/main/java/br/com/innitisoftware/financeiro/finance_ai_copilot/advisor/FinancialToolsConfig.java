@@ -16,7 +16,7 @@ import java.util.Locale;
 public class FinancialToolsConfig {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(FinancialToolsConfig.class);
-    private static final String USER_ID_CONTEXT_KEY = "userId";
+    private static final String PROPERTY_ID_CONTEXT_KEY = "propertyId";
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
@@ -35,7 +35,7 @@ public class FinancialToolsConfig {
             ToolContext toolContext) {
         long startedAt = System.nanoTime();
         LOGGER.info("Tool 'calculateCategoryStats' iniciada");
-        long userId = authenticatedUserId(toolContext);
+        long propertyId = authenticatedPropertyId(toolContext);
         String sql = """
                 SELECT 
                     COUNT(t.id) AS total_count,
@@ -45,21 +45,20 @@ public class FinancialToolsConfig {
                 LEFT JOIN categories c ON t.category_id = c.id
                 LEFT JOIN `groups` g ON c.group_id = g.id
                 LEFT JOIN finance_accounts fa ON t.finance_account_id = fa.id
-                LEFT JOIN users u ON fa.user_id = u.id
-                    WHERE u.id = :userId AND
+                    WHERE t.property_id = :propertyId AND
                     (LOWER(c.name) LIKE LOWER(CONCAT('%', :categoryName, '%'))
                     OR LOWER(g.name) LIKE LOWER(CONCAT('%', :categoryName, '%')))
                   AND t.date BETWEEN :startDate AND :endDate
             """;
 
         MapSqlParameterSource params = new MapSqlParameterSource()
-               .addValue("userId", userId)
+               .addValue("propertyId", propertyId)
                 .addValue("categoryName", category)
                 .addValue("startDate", startDate)
                 .addValue("endDate", endDate);
 
         Stats stats;
-        LOGGER.info("Executando consulta SQL para calcular estatísticas: userId={}, categoria='{}', período={} a {}", userId, category, startDate, endDate);
+        LOGGER.info("Executando consulta SQL para calcular estatísticas: propertyId={}, categoria='{}', período={} a {}", propertyId, category, startDate, endDate);
         try {
             stats = jdbcTemplate.queryForObject(sql, params, (rs, rowNum) -> new Stats(
                 rs.getLong("total_count"),
@@ -82,19 +81,19 @@ public class FinancialToolsConfig {
                 currencyFormat.format(stats.totalSum()), currencyFormat.format(stats.average()));
     }
 
-    static long authenticatedUserId(ToolContext toolContext) {
-        Object value = toolContext.getContext().get(USER_ID_CONTEXT_KEY);
+    static long authenticatedPropertyId(ToolContext toolContext) {
+        Object value = toolContext.getContext().get(PROPERTY_ID_CONTEXT_KEY);
         if (value instanceof Number number) {
             return number.longValue();
         }
-        if (value instanceof String userId && userId.matches("\\d{1,19}")) {
+        if (value instanceof String propertyId && propertyId.matches("\\d{1,19}")) {
             try {
-                return Long.parseLong(userId);
+                return Long.parseLong(propertyId);
             } catch (NumberFormatException exception) {
-                throw new IllegalStateException("Identidade de usuário inválida no contexto da ferramenta", exception);
+                throw new IllegalStateException("Identidade de propriedade inválida no contexto da ferramenta", exception);
             }
         }
-        throw new IllegalStateException("Identidade de usuário ausente ou inválida no contexto da ferramenta");
+        throw new IllegalStateException("Identidade de propriedade ausente ou inválida no contexto da ferramenta");
     }
 
     private record Stats(long totalCount, java.math.BigDecimal totalSum, java.math.BigDecimal average) {}
