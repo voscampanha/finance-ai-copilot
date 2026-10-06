@@ -59,6 +59,7 @@ public class FinancialToolsConfig {
                 .addValue("endDate", endDate);
 
         Stats stats;
+        LOGGER.info("Executando consulta SQL para calcular estatísticas: userId={}, categoria='{}', período={} a {}", userId, category, startDate, endDate);
         try {
             stats = jdbcTemplate.queryForObject(sql, params, (rs, rowNum) -> new Stats(
                 rs.getLong("total_count"),

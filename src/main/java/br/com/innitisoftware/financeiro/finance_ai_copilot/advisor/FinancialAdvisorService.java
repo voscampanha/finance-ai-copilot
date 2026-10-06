@@ -63,6 +63,7 @@ public class FinancialAdvisorService {
                                 .orElse("Nenhum registro financeiro relevante foi encontrado."),
                 result -> "contexto_montado, caracteres=" + result.length()
                         + ", fallback=" + documents.isEmpty());
+        LOGGER.info("Contexto final para a pergunta: '{}'\n{}", question, context);
         return timedStage("Geração da resposta", () -> chatClient.prompt()
                         .tools(financialTools, financialToolsConfig)
                         // .toolContext(Map.of("userId", userIdentity.authenticatedUserId()))

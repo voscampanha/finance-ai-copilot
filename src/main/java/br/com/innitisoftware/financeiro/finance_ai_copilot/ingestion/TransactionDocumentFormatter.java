@@ -37,6 +37,12 @@ public class TransactionDocumentFormatter {
         metadata.put("date", dto.transactionDate() == null ? "" : dto.transactionDate().toString());
         metadata.put("value", dto.value() == null ? "" : dto.value().doubleValue());
         metadata.put("group_name", dto.groupName() == null ? "" : dto.groupName());
+        metadata.put("category_name", dto.categoryName() == null ? "" : dto.categoryName());
+        metadata.put("account_name", dto.accountName() == null ? "" : dto.accountName());
+        metadata.put("description", description);
+        metadata.put("tags", dto.tags() == null ? "" : dto.tags());
+        metadata.put("category_type", dto.categoryType() == null ? "" : dto.categoryType());
+        metadata.put("user_name", dto.userName() == null ? "" : dto.userName());
 
         return new Document(content, metadata);
     }

@@ -10,14 +10,14 @@ class TenantVectorStoreFilterTest {
     void filtersByAuthenticatedUser() {
         TenantVectorStoreFilter filter = new TenantVectorStoreFilter(() -> "tenant-42");
 
-        assertEquals("usuarioId == 'tenant-42'", filter.forAuthenticatedUser());
+        assertEquals("user_id == 'tenant-42'", filter.forAuthenticatedUser());
     }
 
     @Test
     void filtersByAuthenticatedUserAndEscapesCategory() {
         TenantVectorStoreFilter filter = new TenantVectorStoreFilter(() -> "tenant-42");
 
-        assertEquals("usuarioId == 'tenant-42' AND categoria == 'Jo''s'",
+        assertEquals("user_id == 'tenant-42' AND category_name == 'Jo''s'",
                 filter.forAuthenticatedUserAndCategory("Jo's"));
     }
 
