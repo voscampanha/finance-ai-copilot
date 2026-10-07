@@ -115,7 +115,7 @@ public class SqlSchemaProvider {
     public String getSchemaForPrompt() {
         StringBuilder sb = new StringBuilder();
         schemas.forEach((table, schema) -> {
-            sb.append("Tabela: ").append(table).append("\n");
+            sb.append("Tabela: ").append(formatTableName(table)).append("\n");
             sb.append("Descrição: ").append(schema.description()).append("\n");
             sb.append("Colunas:\n");
             schema.columns().forEach(col ->
@@ -128,6 +128,10 @@ public class SqlSchemaProvider {
         return sb.toString();
     }
 
+    private String formatTableName(String table) {
+        return table.equals("groups") ? "`groups`" : table;
+    }
+
     /**
      * Prompt específico com instruções de JOIN e filtro obrigatório,
      * baseado no DER anexado.
@@ -137,7 +141,7 @@ public class SqlSchemaProvider {
             GUIA DE JOINS (baseado no schema):
             - transactions.category_id -> categories.id
             - transactions.finance_account_id -> finance_accounts.id
-            - categories.group_id -> groups.id
+            - categories.group_id -> `groups`.id (em SQL, sempre use FROM `groups` ou JOIN `groups`; nunca omita as crases).
             - finance_accounts.user_id -> users.id (evite expor dados de users)
             
             FILTRO OBRIGATÓRIO:

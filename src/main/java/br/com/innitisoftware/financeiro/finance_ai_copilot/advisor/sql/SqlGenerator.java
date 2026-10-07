@@ -109,15 +109,16 @@ public class SqlGenerator {
             3. NUNCA use comentários SQL (-- ou /* */).
             4. SEMPRE inclua no WHERE um filtro independente para CADA tabela do domínio consultada, usando o alias da tabela: `<alias>.property_id = :propertyId`. Para `properties`, use `<alias>.id = :propertyId`. Todos esses filtros devem estar conectados por AND, nunca dentro de OR.
             5. NUNCA referencie a tabela `users` — ela é proibida por conter dados sensíveis.
-            6. SEMPRE use parâmetros nomeados (`:propertyId`) em vez de concatenar valores.
+            6. NUNCA use placeholders posicionais JDBC (`?`). Para isolamento, use exclusivamente o parâmetro nomeado `:propertyId`. O executor só fornece esse parâmetro; não invente outros placeholders nomeados. Para valores específicos da pergunta, use literais SQL válidos, com strings entre aspas simples.
             7. SEMPRE aplique LIMIT 100 quando a consulta NÃO tiver GROUP BY.
             8. TODA coluna não agregada exibida no SELECT DEVE aparecer também no GROUP BY. O servidor usa ONLY_FULL_GROUP_BY e rejeita o contrário.
             9. NUNCA agrupe apenas pela chave primária (`<alias>.id`) quando o SELECT exibir outras colunas não agregadas E a consulta usar `WITH ROLLUP`. Sem ROLLUP o MySQL aceita por dependência funcional da chave primária; com ROLLUP rejeita (erro 1055). Para obter a linha de total, agrupe pelas MESMAS colunas não agregadas exibidas, por exemplo: `GROUP BY t.date, t.description WITH ROLLUP`.
             10. Use `WITH ROLLUP` APENAS quando a pergunta pedir total ou subtotal; caso contrário não use ROLLUP. A linha de total vem com NULL nas colunas agrupadas, então identifique-a testando uma dessas colunas, por exemplo: `CASE WHEN t.date IS NULL THEN 'TOTAL' ELSE t.date END`.
             11. Use apenas sintaxe comum ao MySQL 8.x;
-            12. Para buscas textuais, use LIKE. Para comparação sem diferenciar maiúsculas e minúsculas, use LOWER(coluna) LIKE LOWER(padrão).
-            13. NUNCA use funções perigosas como SLEEP, BENCHMARK ou LOAD_FILE.
-            14. Retorne APENAS o SQL puro, sem markdown, sem explicações, sem comentários, sem cabeçalho.
+            12. `groups` é uma palavra reservada no MySQL. Sempre escreva o nome da tabela entre crases em toda referência SQL: FROM `groups` g, JOIN `groups` g, incluindo qualquer outro uso como `groups`.`name`. Nunca escreva FROM groups nem JOIN groups sem crases. O alias (por exemplo, g) não substitui as crases no nome da tabela.
+            13. Para buscas textuais, use LIKE. Para comparação sem diferenciar maiúsculas e minúsculas, use LOWER(coluna) LIKE LOWER(padrão).
+            14. NUNCA use funções perigosas como SLEEP, BENCHMARK ou LOAD_FILE.
+            15. Retorne APENAS o SQL puro, sem markdown, sem explicações, sem comentários, sem cabeçalho.
 
             ═══════════════════════════════════════════
             SCHEMA DISPONÍVEL
@@ -142,7 +143,7 @@ public class SqlGenerator {
             - "onde mais gasto" / "tipo de lugar" → agrupe por `categories.name` (via JOIN com transactions).
             - "último lançamento" → ORDER BY date DESC LIMIT 1.
             - "maior gasto" → ordene pela expressão de valor com sinal ASC (despesas são negativas, então a mais negativa vem primeiro); para "maior receita", use DESC.
-            - Use os parâmetros nomeados `:propertyId` exigidos pela aplicação; não os substitua por `?`.
+            - A aplicação só vincula o parâmetro nomeado `:propertyId`. Nunca use `?` como placeholder, nem crie parâmetros como `:startDate`, `:category` ou outros que não são fornecidos pelo executor. Represente datas, categorias e demais valores extraídos da pergunta como literais SQL válidos; strings devem ficar entre aspas simples.
 
             ═══════════════════════════════════════════
             EXEMPLO DE SAÍDA ESPERADA

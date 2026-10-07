@@ -57,7 +57,7 @@ public class FinancialAdvisorService {
         //                 + ", fallback=" + documents.isEmpty());
         // LOGGER.info("Contexto final para a pergunta: '{}'\n{}", question, context);
         return timedStage("Geração da resposta", () -> chatClient.prompt()
-                        .tools(financialTools, dynamicSqlTool)
+                        .tools(dynamicSqlTool, financialTools)
                         .toolContext(Map.of("propertyId", propertyId))
                         .system(systemInstructions(queryType))
                         .user(user -> user.text("Contexto financeiro:\n{context}\n\nPergunta: {question}")
@@ -69,9 +69,9 @@ public class FinancialAdvisorService {
     }
 
     private String systemInstructions(QueryRouter.QueryType queryType) {
-        String routingInstruction = queryType == QueryRouter.QueryType.ANALYTICAL
-                                ? "A pergunta é analítica. Chame 'executeDynamicQuery' antes de responder."
-                                : "A pergunta é contextual. Use os documentos fornecidos no contexto e chame 'searchFinancialContext' quando eles forem insuficientes.";
+        // String routingInstruction = queryType == QueryRouter.QueryType.ANALYTICAL
+        //                         ? "A pergunta é analítica. Chame 'executeDynamicQuery' antes de responder."
+        //                         : "A pergunta é contextual. Use os documentos fornecidos no contexto e chame 'searchFinancialContext' quando eles forem insuficientes.";
         return "Você é um consultor financeiro pessoal. Responda SEMPRE em português do Brasil, de forma objetiva e clara. "
                 + "Para QUALQUER pergunta sobre totais, somas, médias, contagens, frequências ou agregações numéricas, "
                 + "DEVE chamar a ferramenta 'executeDynamicQuery' para obter os resultados e usá-los na resposta. "
@@ -80,7 +80,7 @@ public class FinancialAdvisorService {
                 + "Se o contexto estiver vazio e a pergunta não for analítica, diga explicitamente que não há evidência suficiente. "
                 + "NUNCA exponha IDs internos, nomes de tabelas, colunas ou detalhes técnicos do banco. "
                 + "Se uma ferramenta retornar erro ou vazio, informe o usuário sem inventar dados. "
-                + "Formate valores monetários em R$ com duas casas decimais. " + routingInstruction;
+                + "Formate valores monetários em R$ com duas casas decimais. ";// + routingInstruction;
     }
 
     private <T> T timedStage(String stage, Supplier<T> operation, Function<T, String> resultSummary) {

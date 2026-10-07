@@ -200,7 +200,7 @@ public class SqlValidator {
         }
 
         for (String rawTable : tables) {
-            String table = rawTable.toLowerCase(Locale.ROOT).split("\\s+")[0];
+            String table = normalizeTableName(rawTable);
 
             if (FORBIDDEN_TABLES.contains(table)) {
                 throw new SqlValidationException("Tabela proibida: " + table);
@@ -209,6 +209,18 @@ public class SqlValidator {
                 throw new SqlValidationException("Tabela não autorizada: " + table);
             }
         }
+    }
+
+    private String normalizeTableName(String rawTable) {
+        String table = rawTable.toLowerCase(Locale.ROOT).split("\\s+")[0];
+        if (table.length() >= 2
+                && ((table.startsWith("`") && table.endsWith("`"))
+                || (table.startsWith("\"") && table.endsWith("\"")))) {
+            return table.substring(1, table.length() - 1)
+                    .replace("``", "`")
+                    .replace("\"\"", "\"");
+        }
+        return table;
     }
 
     private void validateSubqueries(Select select, String sql) {

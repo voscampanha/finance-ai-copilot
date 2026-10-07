@@ -19,6 +19,15 @@ class SqlValidatorTest {
     }
 
     @Test
+    void acceptsBacktickQuotedGroupsTable() {
+        assertDoesNotThrow(() -> validator.validate("""
+                SELECT g.name
+                FROM `groups` g
+                WHERE g.property_id = :propertyId
+                """));
+    }
+
+    @Test
     void requiresTenantPredicateForEveryJoinedTable() {
         String sql = """
                 SELECT t.description, c.name
