@@ -38,30 +38,30 @@ public class FinancialAdvisorService {
     public String answer(String question, long propertyId) {
         QueryRouter.QueryType queryType = timedStage("Roteamento", () -> queryRouter.classify(question),
                 result -> "tipo=" + result);
-        List<Document> documents = queryType == QueryRouter.QueryType.ANALYTICAL
-                ? List.of()
-                : timedStage("Busca vetorial", () -> vectorStore.similaritySearch(SearchRequest.builder()
-                                .query(question)
-                                .topK(8 )
-                                // .filterExpression(tenantFilter.forAuthenticatedUser())
-                                .build()).stream()
-                        .toList(),
-                result -> "documentos_relevantes=" + result.size());
-        String context = queryType == QueryRouter.QueryType.ANALYTICAL
-                ? ""
-                : timedStage("Montagem do contexto", () -> documents.stream()
-                                .map(document -> document.getText())
-                                .reduce((left, right) -> left + "\n" + right)
-                                .orElse("Nenhum registro financeiro relevante foi encontrado."),
-                result -> "contexto_montado, caracteres=" + result.length()
-                        + ", fallback=" + documents.isEmpty());
-        LOGGER.info("Contexto final para a pergunta: '{}'\n{}", question, context);
+        // List<Document> documents = queryType == QueryRouter.QueryType.ANALYTICAL
+        //         ? List.of()
+        //         : timedStage("Busca vetorial", () -> vectorStore.similaritySearch(SearchRequest.builder()
+        //                         .query(question)
+        //                         .topK(8 )
+        //                         // .filterExpression(tenantFilter.forAuthenticatedUser())
+        //                         .build()).stream()
+        //                 .toList(),
+        //         result -> "documentos_relevantes=" + result.size());
+        // String context = queryType == QueryRouter.QueryType.ANALYTICAL
+        //         ? ""
+        //         : timedStage("Montagem do contexto", () -> documents.stream()
+        //                         .map(document -> document.getText())
+        //                         .reduce((left, right) -> left + "\n" + right)
+        //                         .orElse("Nenhum registro financeiro relevante foi encontrado."),
+        //         result -> "contexto_montado, caracteres=" + result.length()
+        //                 + ", fallback=" + documents.isEmpty());
+        // LOGGER.info("Contexto final para a pergunta: '{}'\n{}", question, context);
         return timedStage("Geração da resposta", () -> chatClient.prompt()
                         .tools(financialTools, dynamicSqlTool)
                         .toolContext(Map.of("propertyId", propertyId))
                         .system(systemInstructions(queryType))
                         .user(user -> user.text("Contexto financeiro:\n{context}\n\nPergunta: {question}")
-                                .param("context", context)
+                                .param("context", "")
                                 .param("question", question))
                         .call()
                         .content(),

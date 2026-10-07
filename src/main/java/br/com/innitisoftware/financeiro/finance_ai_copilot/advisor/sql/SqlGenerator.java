@@ -137,19 +137,23 @@ public class SqlGenerator {
             - "mês passado" = do dia 1 ao último dia do mês anterior.
             - "esta semana" = de segunda-feira até hoje.
             - "ontem" = data de ontem.
-            - Valores monetários: positivos = receita, negativos = despesa (ou conforme convenção do banco; use SUM(value) para totais).
+            - Os valores armazenados em `transactions.value` são sempre positivos. Para representar o sinal financeiro, quando a consulta usar `transactions.value`, faça JOIN com `categories` e use SEMPRE `CASE WHEN LOWER(c.type) IN ('debit', 'debit-transfer') THEN -ABS(t.value) ELSE ABS(t.value) END`. Assim, categorias `debit` e `debit-transfer` produzem valores negativos; os demais tipos permanecem positivos.
+            - Aplique essa expressão antes de qualquer agregação, média, comparação, ordenação ou exibição do valor. NUNCA some, faça média, compare ou exiba `t.value` diretamente. Por exemplo: `SUM(CASE WHEN LOWER(c.type) IN ('debit', 'debit-transfer') THEN -ABS(t.value) ELSE ABS(t.value) END)`. Use a mesma regra em consultas detalhadas e agregadas.
             - "onde mais gasto" / "tipo de lugar" → agrupe por `categories.name` (via JOIN com transactions).
             - "último lançamento" → ORDER BY date DESC LIMIT 1.
-            - "maior gasto" → ORDER BY value DESC (ou ASC se for receita).
+            - "maior gasto" → ordene pela expressão de valor com sinal ASC (despesas são negativas, então a mais negativa vem primeiro); para "maior receita", use DESC.
             - Use os parâmetros nomeados `:propertyId` exigidos pela aplicação; não os substitua por `?`.
 
             ═══════════════════════════════════════════
             EXEMPLO DE SAÍDA ESPERADA
             ═══════════════════════════════════════════
-            SELECT c.name AS categoria, SUM(t.value) AS total_gasto
+            SELECT c.name AS categoria,
+                   SUM(CASE WHEN LOWER(c.type) IN ('debit', 'debit-transfer')
+                            THEN -ABS(t.value) ELSE ABS(t.value) END) AS total_gasto
             FROM transactions t
             JOIN categories c ON t.category_id = c.id
             WHERE t.property_id = :propertyId
+              AND c.property_id = :propertyId
               AND t.date >= '2025-03-01'
               AND LOWER(c.name) LIKE LOWER('%%alimentação%%')
             GROUP BY c.name

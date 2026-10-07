@@ -70,7 +70,7 @@ public class SqlSchemaProvider {
                 new ColumnSchema("id", "BIGINT", "Identificador interno."),
                 new ColumnSchema("property_id", "BIGINT", "Identificador da propriedade. SEMPRE filtrar."),
                 new ColumnSchema("name", "VARCHAR", "Nome da categoria. Use para 'quanto gastei em alimentação'."),
-                new ColumnSchema("type", "VARCHAR", "Tipo da categoria (ex: RECEITA, DESPESA)."),
+                new ColumnSchema("type", "VARCHAR", "Tipo da categoria. Valores debit e debit-transfer indicam saída e exigem tratar transactions.value como negativo nas consultas; os valores armazenados são sempre positivos."),
                 new ColumnSchema("priority", "INT", "Prioridade de exibição."),
                 new ColumnSchema("group_id", "BIGINT", "FK para groups."),
                 new ColumnSchema("active", "BOOLEAN", "Se a categoria está ativa."),
