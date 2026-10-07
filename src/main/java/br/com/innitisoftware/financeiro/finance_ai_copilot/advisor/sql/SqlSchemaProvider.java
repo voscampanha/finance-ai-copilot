@@ -141,7 +141,9 @@ public class SqlSchemaProvider {
             - finance_accounts.user_id -> users.id (evite expor dados de users)
             
             FILTRO OBRIGATÓRIO:
-            - Toda tabela do domínio possui `property_id`. SEMPRE inclua `property_id = :propertyId` no WHERE.
+            - Para CADA tabela do domínio consultada, inclua no WHERE um filtro independente pelo alias: `<alias>.property_id = :propertyId`. Em consultas com JOIN, aplique em todas as tabelas.
+            - Para `properties`, use `<alias>.id = :propertyId`.
+            - Conecte todos os filtros de tenant por AND, nunca dentro de OR.
             - Para perguntas que precisam isolar por usuário dentro da property, faça JOIN com finance_accounts e filtre `finance_accounts.user_id = :userId`.
             """;
     }

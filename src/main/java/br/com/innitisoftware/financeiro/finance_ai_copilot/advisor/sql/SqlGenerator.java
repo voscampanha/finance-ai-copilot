@@ -53,7 +53,7 @@ public class SqlGenerator {
      *                   o LLM precise saber o contexto — o filtro real é injetado pelo Executor)
      * @return SQL bruto (não validado) pronto para o SqlValidator
      */
-    public String generate(String question, String propertyId) {
+    public String generate(String question, long propertyId) {
         long start = System.currentTimeMillis();
 
         try {
@@ -99,6 +99,7 @@ public class SqlGenerator {
         return """
             Você é um gerador de SQL para um banco de dados financeiro pessoal multi-tenant.
             Sua única função é converter perguntas em linguagem natural em comandos SELECT.
+            Gere consultas compatíveis com MySQL 8.x com sql_mode=ONLY_FULL_GROUP_BY.
 
             ═══════════════════════════════════════════
             REGRAS ABSOLUTAS (violação = resposta rejeitada)
@@ -106,12 +107,17 @@ public class SqlGenerator {
             1. Gere APENAS comandos SELECT. Nunca INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, REVOKE ou qualquer DDL/DML.
             2. NUNCA use múltiplos statements. Uma pergunta = um SELECT.
             3. NUNCA use comentários SQL (-- ou /* */).
-            4. SEMPRE inclua o filtro `property_id = :propertyId` no WHERE de cada tabela do domínio (exceto a tabela `properties`, que filtra por `id = :propertyId`).
+            4. SEMPRE inclua no WHERE um filtro independente para CADA tabela do domínio consultada, usando o alias da tabela: `<alias>.property_id = :propertyId`. Para `properties`, use `<alias>.id = :propertyId`. Todos esses filtros devem estar conectados por AND, nunca dentro de OR.
             5. NUNCA referencie a tabela `users` — ela é proibida por conter dados sensíveis.
-            6. SEMPRE use parâmetros nomeados (`:propertyId`, `:userId`) em vez de concatenar valores.
+            6. SEMPRE use parâmetros nomeados (`:propertyId`) em vez de concatenar valores.
             7. SEMPRE aplique LIMIT 100 quando a consulta NÃO tiver GROUP BY.
-            8. NUNCA use funções perigosas como pg_sleep, benchmark, load_file.
-            9. Retorne APENAS o SQL puro, sem markdown, sem explicações, sem comentários, sem cabeçalho.
+            8. TODA coluna não agregada exibida no SELECT DEVE aparecer também no GROUP BY. O servidor usa ONLY_FULL_GROUP_BY e rejeita o contrário.
+            9. NUNCA agrupe apenas pela chave primária (`<alias>.id`) quando o SELECT exibir outras colunas não agregadas E a consulta usar `WITH ROLLUP`. Sem ROLLUP o MySQL aceita por dependência funcional da chave primária; com ROLLUP rejeita (erro 1055). Para obter a linha de total, agrupe pelas MESMAS colunas não agregadas exibidas, por exemplo: `GROUP BY t.date, t.description WITH ROLLUP`.
+            10. Use `WITH ROLLUP` APENAS quando a pergunta pedir total ou subtotal; caso contrário não use ROLLUP. A linha de total vem com NULL nas colunas agrupadas, então identifique-a testando uma dessas colunas, por exemplo: `CASE WHEN t.date IS NULL THEN 'TOTAL' ELSE t.date END`.
+            11. Use apenas sintaxe comum ao MySQL 8.x;
+            12. Para buscas textuais, use LIKE. Para comparação sem diferenciar maiúsculas e minúsculas, use LOWER(coluna) LIKE LOWER(padrão).
+            13. NUNCA use funções perigosas como SLEEP, BENCHMARK ou LOAD_FILE.
+            14. Retorne APENAS o SQL puro, sem markdown, sem explicações, sem comentários, sem cabeçalho.
 
             ═══════════════════════════════════════════
             SCHEMA DISPONÍVEL
@@ -135,6 +141,7 @@ public class SqlGenerator {
             - "onde mais gasto" / "tipo de lugar" → agrupe por `categories.name` (via JOIN com transactions).
             - "último lançamento" → ORDER BY date DESC LIMIT 1.
             - "maior gasto" → ORDER BY value DESC (ou ASC se for receita).
+            - Use os parâmetros nomeados `:propertyId` exigidos pela aplicação; não os substitua por `?`.
 
             ═══════════════════════════════════════════
             EXEMPLO DE SAÍDA ESPERADA
@@ -144,6 +151,7 @@ public class SqlGenerator {
             JOIN categories c ON t.category_id = c.id
             WHERE t.property_id = :propertyId
               AND t.date >= '2025-03-01'
+              AND LOWER(c.name) LIKE LOWER('%%alimentação%%')
             GROUP BY c.name
             ORDER BY total_gasto DESC
             """.formatted(

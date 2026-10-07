@@ -20,15 +20,18 @@ public class FinancialAdvisorService {
     private final ChatClient chatClient;
     private final VectorStore vectorStore;
     private final FinancialTools financialTools;
+    private final DynamicSqlTool dynamicSqlTool;
     private final QueryRouter queryRouter;
 
     public FinancialAdvisorService(ChatClient chatClient,
                                    VectorStore vectorStore,
                                    FinancialTools financialTools,
+                                   DynamicSqlTool dynamicSqlTool,
                                    QueryRouter queryRouter) {
         this.chatClient = chatClient;
         this.vectorStore = vectorStore;
         this.financialTools = financialTools;
+        this.dynamicSqlTool = dynamicSqlTool;
         this.queryRouter = queryRouter;
     }
 
@@ -54,7 +57,7 @@ public class FinancialAdvisorService {
                         + ", fallback=" + documents.isEmpty());
         LOGGER.info("Contexto final para a pergunta: '{}'\n{}", question, context);
         return timedStage("Geração da resposta", () -> chatClient.prompt()
-                        .tools(financialTools)
+                        .tools(financialTools, dynamicSqlTool)
                         .toolContext(Map.of("propertyId", propertyId))
                         .system(systemInstructions(queryType))
                         .user(user -> user.text("Contexto financeiro:\n{context}\n\nPergunta: {question}")
@@ -67,11 +70,11 @@ public class FinancialAdvisorService {
 
     private String systemInstructions(QueryRouter.QueryType queryType) {
         String routingInstruction = queryType == QueryRouter.QueryType.ANALYTICAL
-                                ? "A pergunta é analítica. Chame 'calculateCategoryStats' antes de responder."
+                                ? "A pergunta é analítica. Chame 'executeDynamicQuery' antes de responder."
                                 : "A pergunta é contextual. Use os documentos fornecidos no contexto e chame 'searchFinancialContext' quando eles forem insuficientes.";
         return "Você é um consultor financeiro pessoal. Responda SEMPRE em português do Brasil, de forma objetiva e clara. "
                 + "Para QUALQUER pergunta sobre totais, somas, médias, contagens, frequências ou agregações numéricas, "
-                + "DEVE chamar a ferramenta 'calculateCategoryStats' para obter os resultados e usá-los na resposta. "
+                + "DEVE chamar a ferramenta 'executeDynamicQuery' para obter os resultados e usá-los na resposta. "
                 + "NUNCA calcule mentalmente nem invente valores. "
                 + "Para perguntas sobre contexto, use os documentos fornecidos no contexto. "
                 + "Se o contexto estiver vazio e a pergunta não for analítica, diga explicitamente que não há evidência suficiente. "

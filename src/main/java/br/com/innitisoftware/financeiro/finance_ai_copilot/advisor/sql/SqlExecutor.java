@@ -53,14 +53,13 @@ public class SqlExecutor {
      *
      * @param sql        SQL já validado pelo SqlValidator
      * @param propertyId identificador do tenant (obrigatório)
-     * @param userId     identificador do usuário (opcional, para perguntas que exigem isolamento por usuário)
      * @return texto formatado com o resultado ou mensagem de "nenhum registro"
      */
-    public String execute(String sql, String propertyId, String userId) {
+    public String execute(String sql, long propertyId) {
         long start = System.currentTimeMillis();
 
         try {
-            MapSqlParameterSource params = buildParams(propertyId, userId);
+            MapSqlParameterSource params = buildParams(propertyId);
 
             jdbcTemplate.getJdbcTemplate().setQueryTimeout(QUERY_TIMEOUT_SECONDS);
 
@@ -68,8 +67,8 @@ public class SqlExecutor {
 
             long elapsed = System.currentTimeMillis() - start;
             auditLog.info(
-                "SQL executado | propertyId={} | userId={} | linhas={} | tempo={}ms | sql=\"{}\"",
-                propertyId, userId, rows.size(), elapsed, sql
+                "SQL executado | propertyId={} | linhas={} | tempo={}ms | sql=\"{}\"",
+                propertyId, rows.size(), elapsed, sql
             );
 
             if (rows.isEmpty()) {
@@ -108,13 +107,9 @@ public class SqlExecutor {
      * Estes valores vêm do ToolContext, NUNCA do LLM — o LLM não pode
      * vê-los nem modificá-los.
      */
-    private MapSqlParameterSource buildParams(String propertyId, String userId) {
+    private MapSqlParameterSource buildParams(long propertyId) {
         MapSqlParameterSource params = new MapSqlParameterSource();
         params.addValue("propertyId", propertyId);
-        params.addValue("userId", userId);
-        // Aliases comuns que o LLM pode gerar
-        params.addValue("property_id", propertyId);
-        params.addValue("user_id", userId);
         return params;
     }
 

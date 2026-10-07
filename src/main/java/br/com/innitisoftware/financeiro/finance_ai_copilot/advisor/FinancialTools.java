@@ -37,7 +37,7 @@ public class FinancialTools {
     /**
      * Calcula estatísticas financeiras sem expor a identidade do usuário ao modelo.
      */
-    @Tool(description = "Calcula estatísticas agregadas de lançamentos por categoria e período: total gasto, soma, média, contagem e frequência. Use SEMPRE para perguntas analíticas como 'quanto gastei', 'total de', 'média de', 'quantas vezes' ou comparações numéricas.")
+    // @Tool(description = "Calcula estatísticas agregadas de lançamentos por categoria e período: total gasto, soma, média, contagem e frequência. Use SEMPRE para perguntas analíticas como 'quanto gastei', 'total de', 'média de', 'quantas vezes' ou comparações numéricas.")
     public String calculateCategoryStats(
             @ToolParam(description = "Nome da categoria ou grupo, por exemplo Alimentação ou Transporte") String category,
             @ToolParam(description = "Data inicial do período no formato YYYY-MM-DD") String startDate,

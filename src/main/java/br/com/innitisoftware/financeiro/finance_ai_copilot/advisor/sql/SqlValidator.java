@@ -1,14 +1,18 @@
 package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.sql;
 
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.ExpressionVisitorAdapter;
+import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcNamedParameter;
-import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.Parenthesis;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
+import net.sf.jsqlparser.expression.operators.relational.ExistsExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
+import net.sf.jsqlparser.expression.operators.relational.InExpression;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.schema.Column;
+import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.select.*;
 import net.sf.jsqlparser.util.TablesNamesFinder;
@@ -16,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -83,6 +88,18 @@ public class SqlValidator {
     private static final Pattern SQL_COMMENTS = Pattern.compile("(--|/\\*|#)");
 
     /**
+     * Funções de agregação: colunas dentro delas são agregadas e, portanto,
+     * não precisam aparecer no GROUP BY.
+     */
+    private static final Set<String> AGGREGATE_FUNCTIONS = Set.of(
+            "sum", "count", "avg", "min", "max",
+            "group_concat", "json_arrayagg", "json_objectagg",
+            "std", "stddev", "stddev_pop", "stddev_samp",
+            "variance", "var_pop", "var_samp",
+            "bit_and", "bit_or", "bit_xor"
+    );
+
+    /**
      * Valida o SQL e retorna a versão normalizada (com LIMIT aplicado se necessário).
      *
      * @param sql SQL bruto gerado pelo LLM
@@ -137,7 +154,10 @@ public class SqlValidator {
             // 11. Filtro obrigatório de property_id
             validateTenantFilter(select);
 
-            // 12. Aplicar LIMIT se necessário
+            // 12. `WITH ROLLUP` exige que toda coluna não agregada exibida esteja no GROUP BY
+            validateRollupGrouping(select);
+
+            // 13. Aplicar LIMIT se necessário
             sql = applyLimitIfNeeded(select, sql);
 
             auditLog.info("SQL aprovado | original=\"{}\" | final=\"{}\"", original, sql);
@@ -218,73 +238,225 @@ public class SqlValidator {
     }
 
     /**
-     * Regras:
-     * - Se a query acessa apenas `properties`, exige filtro em `id`.
-     * - Se acessa qualquer outra tabela, exige `property_id` no WHERE.
-     * - Aceita tanto `property_id = :propertyId` quanto `t.property_id = :propertyId`
-     *   (com ou sem alias).
+     * Every domain table must have its own tenant predicate, connected to the
+     * WHERE clause with AND and bound to the trusted :propertyId parameter.
      */
     private void validateTenantFilter(Select select) {
+        if (select.getWithItemsList() != null && !select.getWithItemsList().isEmpty()) {
+            throw new SqlValidationException("Consultas com CTE não são permitidas.");
+        }
         if (select instanceof SetOperationList setOperationList) {
             for (Select branch : setOperationList.getSelects()) {
                 validateTenantFilter(branch);
             }
             return;
         }
+        if (!(select instanceof PlainSelect plainSelect)) {
+            throw new SqlValidationException("Formato de consulta não suportado para isolamento de tenant.");
+        }
 
-        TablesNamesFinder<Void> finder = new TablesNamesFinder<>();
-        Set<String> tables = finder.getTables((Statement) select);
-        List<String> normalizedTables = tables.stream()
-                .map(t -> t.toLowerCase(Locale.ROOT).split("\\s+")[0])
-                .toList();
-
-        boolean onlyProperties = normalizedTables.size() == 1
-            && normalizedTables.contains("properties");
-        PlainSelect plainSelect = extractPlainSelect(select);
-        Expression where = plainSelect == null ? null : plainSelect.getWhere();
-
-        if (onlyProperties) {
-            if (!containsRequiredEquality(where, "id")) {
-                throw new SqlValidationException(
-                        "Consulta em `properties` sem filtro de `id`.");
+        validateNoNestedSelects(plainSelect);
+        Expression where = plainSelect.getWhere();
+        List<Table> tables = new java.util.ArrayList<>();
+        tables.add(requireDirectTable(plainSelect.getFromItem()));
+        if (plainSelect.getJoins() != null) {
+            for (Join join : plainSelect.getJoins()) {
+                tables.add(requireDirectTable(join.getFromItem()));
             }
+        }
+
+        for (Table table : tables) {
+            String tableName = table.getName().toLowerCase(Locale.ROOT);
+            String columnName = tableName.equals("properties") ? "id" : TENANT_COLUMN;
+            String qualifier = table.getAlias() == null
+                    ? tableName
+                    : table.getAlias().getName();
+            if (!containsRequiredEquality(where, columnName, qualifier)) {
+                throw new SqlValidationException(
+                        "Filtro obrigatório de tenant ausente ou inválido para a tabela `" + tableName + "`.");
+            }
+        }
+    }
+
+    /**
+     * Em consultas com `WITH ROLLUP`, o MySQL 8 (sql_mode=ONLY_FULL_GROUP_BY) rejeita
+     * colunas não agregadas que não estejam no GROUP BY — inclusive as funcionalmente
+     * dependentes da chave primária agrupada, exceção que só vale sem ROLLUP.
+     * Antecipamos aqui para não gastar uma ida ao banco com SQL que ele já recusaria.
+     */
+    private void validateRollupGrouping(Select select) {
+        if (select instanceof SetOperationList setOperationList) {
+            setOperationList.getSelects().forEach(this::validateRollupGrouping);
+            return;
+        }
+        if (!(select instanceof PlainSelect plainSelect)) {
+            return;
+        }
+        GroupByElement groupBy = plainSelect.getGroupBy();
+        if (groupBy == null || !groupBy.isMysqlWithRollup()) {
             return;
         }
 
-        if (!containsRequiredEquality(where, TENANT_COLUMN)) {
-            throw new SqlValidationException(
-                    "Filtro obrigatório ausente: `property_id`.");
+        Set<String> groupedColumns = new LinkedHashSet<>();
+        List<Expression> groupByExpressions = groupBy.getGroupByExpressionList() == null
+                ? List.of()
+                : groupBy.getGroupByExpressionList().getExpressions();
+        groupByExpressions.forEach(expression -> collectGroupedColumnKeys(groupedColumns, expression));
+
+        for (SelectItem<?> item : plainSelect.getSelectItems()) {
+            String alias = item.getAliasName() == null
+                    ? null
+                    : item.getAliasName().toLowerCase(Locale.ROOT);
+            // O MySQL aceita agrupar pelo alias do próprio item do SELECT.
+            if (alias != null && groupedColumns.contains(alias)) {
+                continue;
+            }
+            for (String column : nonAggregatedColumnKeys(item.getExpression())) {
+                int separator = column.indexOf('.');
+                String bareName = separator < 0 ? column : column.substring(separator + 1);
+                if (groupedColumns.contains(column) || groupedColumns.contains(bareName)) {
+                    continue;
+                }
+                throw new SqlValidationException(
+                        "Em consultas com WITH ROLLUP, toda coluna não agregada do SELECT "
+                                + "deve aparecer no GROUP BY (sql_mode=ONLY_FULL_GROUP_BY).");
+            }
+        }
+    }
+
+    /** Adiciona as chaves de cada coluna agrupada, com e sem o qualificador de tabela. */
+    private void collectGroupedColumnKeys(Set<String> target, Expression expression) {
+        if (expression == null) {
+            return;
+        }
+        expression.accept(new ExpressionVisitorAdapter<Void>() {
+            @Override
+            public <S> Void visit(Column column, S context) {
+                target.add(columnKey(column));
+                target.add(column.getColumnName().toLowerCase(Locale.ROOT));
+                return super.visit(column, context);
+            }
+        }, null);
+    }
+
+    /** Coleta as colunas referenciadas fora de funções de agregação. */
+    private Set<String> nonAggregatedColumnKeys(Expression expression) {
+        Set<String> columns = new LinkedHashSet<>();
+        if (expression == null) {
+            return columns;
+        }
+        expression.accept(new ExpressionVisitorAdapter<Void>() {
+            @Override
+            public <S> Void visit(Function function, S context) {
+                String name = function.getName();
+                if (name != null && AGGREGATE_FUNCTIONS.contains(name.toLowerCase(Locale.ROOT))) {
+                    return null;
+                }
+                return super.visit(function, context);
+            }
+
+            @Override
+            public <S> Void visit(Column column, S context) {
+                columns.add(columnKey(column));
+                return super.visit(column, context);
+            }
+        }, null);
+        return columns;
+    }
+
+    private String columnKey(Column column) {
+        String name = column.getColumnName().toLowerCase(Locale.ROOT);
+        return column.getTable() == null
+                ? name
+                : column.getTable().getName().toLowerCase(Locale.ROOT) + "." + name;
+    }
+
+    private Table requireDirectTable(FromItem fromItem) {
+        if (fromItem instanceof Table table) {
+            return table;
+        }
+        throw new SqlValidationException(
+                "Fontes de consulta devem ser tabelas diretas para validar o isolamento de tenant.");
+    }
+
+    private void validateNoNestedSelects(PlainSelect select) {
+        ExpressionVisitorAdapter<Void> visitor = new ExpressionVisitorAdapter<>() {
+            @Override
+            public <S> Void visit(ParenthesedSelect nestedSelect, S context) {
+                throw new SqlValidationException(
+                        "Subconsultas não são permitidas sem validação independente de tenant.");
+            }
+
+            @Override
+            public <S> Void visit(ExistsExpression existsExpression, S context) {
+                throw new SqlValidationException(
+                        "Subconsultas não são permitidas sem validação independente de tenant.");
+            }
+
+            @Override
+            public <S> Void visit(InExpression inExpression, S context) {
+                if (inExpression.getRightExpression() instanceof ParenthesedSelect) {
+                    throw new SqlValidationException(
+                            "Subconsultas não são permitidas sem validação independente de tenant.");
+                }
+                return super.visit(inExpression, context);
+            }
+        };
+        select.getSelectItems().forEach(item -> visitExpression(item.getExpression(), visitor));
+        visitExpression(select.getWhere(), visitor);
+        visitExpression(select.getHaving(), visitor);
+        if (select.getGroupBy() != null && select.getGroupBy().getGroupByExpressionList() != null) {
+            select.getGroupBy().getGroupByExpressionList().getExpressions()
+                    .forEach(expression -> visitExpression(expression, visitor));
+        }
+        if (select.getOrderByElements() != null) {
+            select.getOrderByElements().forEach(orderBy ->
+                    visitExpression(orderBy.getExpression(), visitor));
+        }
+        if (select.getJoins() != null) {
+            select.getJoins().stream()
+                    .flatMap(join -> join.getOnExpressions().stream())
+                    .forEach(expression -> visitExpression(expression, visitor));
+        }
+    }
+
+    private void visitExpression(Expression expression, ExpressionVisitorAdapter<Void> visitor) {
+        if (expression != null) {
+            expression.accept(visitor, null);
         }
     }
 
     @SuppressWarnings("removal")
-    private boolean containsRequiredEquality(Expression expression, String columnName) {
+    private boolean containsRequiredEquality(Expression expression, String columnName, String qualifier) {
         if (expression instanceof Parenthesis parenthesis) {
-            return containsRequiredEquality(parenthesis.getExpression(), columnName);
+            return containsRequiredEquality(parenthesis.getExpression(), columnName, qualifier);
         }
         if (expression instanceof AndExpression andExpression) {
-            return containsRequiredEquality(andExpression.getLeftExpression(), columnName)
-                    || containsRequiredEquality(andExpression.getRightExpression(), columnName);
+            return containsRequiredEquality(andExpression.getLeftExpression(), columnName, qualifier)
+                    || containsRequiredEquality(andExpression.getRightExpression(), columnName, qualifier);
         }
         if (!(expression instanceof EqualsTo equalsTo)) {
             return false;
         }
 
-        return (isRequiredColumn(equalsTo.getLeftExpression(), columnName)
-                    && isAllowedFilterValue(equalsTo.getRightExpression()))
-                || (isRequiredColumn(equalsTo.getRightExpression(), columnName)
-                    && isAllowedFilterValue(equalsTo.getLeftExpression()));
+        return (isRequiredColumn(equalsTo.getLeftExpression(), columnName, qualifier)
+                    && isTrustedTenantParameter(equalsTo.getRightExpression()))
+                || (isRequiredColumn(equalsTo.getRightExpression(), columnName, qualifier)
+                    && isTrustedTenantParameter(equalsTo.getLeftExpression()));
     }
 
-    private boolean isRequiredColumn(Expression expression, String columnName) {
-        return expression instanceof Column column
-                && column.getColumnName().equalsIgnoreCase(columnName);
+    private boolean isRequiredColumn(Expression expression, String columnName, String qualifier) {
+        if (!(expression instanceof Column column)
+                || !column.getColumnName().equalsIgnoreCase(columnName)) {
+            return false;
+        }
+        return column.getTable() != null
+                && column.getTable().getName().equalsIgnoreCase(qualifier);
     }
 
-    private boolean isAllowedFilterValue(Expression expression) {
-        return expression instanceof JdbcParameter
-                || expression instanceof JdbcNamedParameter
-                || expression instanceof LongValue;
+    private boolean isTrustedTenantParameter(Expression expression) {
+        return expression instanceof JdbcNamedParameter parameter
+                && parameter.getName().equalsIgnoreCase("propertyId");
     }
 
     /**

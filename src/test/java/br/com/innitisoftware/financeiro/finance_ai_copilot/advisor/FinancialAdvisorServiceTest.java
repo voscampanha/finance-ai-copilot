@@ -25,6 +25,7 @@ class FinancialAdvisorServiceTest {
     private final ChatClient chatClient = mock(ChatClient.class);
     private final VectorStore vectorStore = mock(VectorStore.class);
     private final FinancialTools financialToolsConfig = mock(FinancialTools.class);
+    private final DynamicSqlTool dynamicSqlTool = mock(DynamicSqlTool.class);
     private final UserIdentity userIdentity = mock(UserIdentity.class);
 
     private FinancialAdvisorService service;
@@ -38,7 +39,7 @@ class FinancialAdvisorServiceTest {
         when(requestSpec.call()).thenReturn(responseSpec);
         when(responseSpec.content()).thenReturn("resposta");
         service = new FinancialAdvisorService(chatClient, vectorStore,
-                financialToolsConfig, new QueryRouter());
+                financialToolsConfig, dynamicSqlTool, new QueryRouter());
     }
 
     @Test
@@ -46,11 +47,11 @@ class FinancialAdvisorServiceTest {
         service.answer("Quanto gastei com mercado?", 1);
 
         verify(vectorStore, never()).similaritySearch(any(SearchRequest.class));
-        verify(requestSpec).tools(financialToolsConfig);
+        verify(requestSpec).tools(financialToolsConfig, dynamicSqlTool);
         var systemPromptCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(requestSpec).system(systemPromptCaptor.capture());
         assertTrue(systemPromptCaptor.getValue().contains(
-            "DEVE chamar a ferramenta 'calculateCategoryStats'"));
+            "DEVE chamar a ferramenta 'executeDynamicQuery'"));
         verify(requestSpec).user(org.mockito.ArgumentMatchers
             .<Consumer<ChatClient.PromptUserSpec>>argThat(userPrompt -> {
                 ChatClient.PromptUserSpec prompt = mock(ChatClient.PromptUserSpec.class, RETURNS_SELF);
