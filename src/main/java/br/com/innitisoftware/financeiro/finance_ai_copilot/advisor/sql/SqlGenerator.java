@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -123,23 +124,25 @@ public class SqlGenerator {
             ═══════════════════════════════════════════
             SCHEMA DISPONÍVEL
             ═══════════════════════════════════════════
-            %s
+            %1$s
 
             ═══════════════════════════════════════════
             GUIA DE JOINS E FILTROS
             ═══════════════════════════════════════════
-            %s
+            %2$s
 
             ═══════════════════════════════════════════
             CONVENÇÕES DE NEGÓCIO
             ═══════════════════════════════════════════
+            - Ano corrente: %3$d. Quando a pergunta mencionar uma data ou período sem informar o ano, use sempre o ano corrente (%3$d), inclusive em datas explícitas como "15 de março" ou meses como "março". Não deduza outro ano.
             - Datas: use o formato 'YYYY-MM-DD' entre aspas simples.
             - "este mês" = do dia 1 do mês atual até hoje.
             - "mês passado" = do dia 1 ao último dia do mês anterior.
             - "esta semana" = de segunda-feira até hoje.
             - "ontem" = data de ontem.
-            - Os valores armazenados em `transactions.value` são sempre positivos. Para representar o sinal financeiro, quando a consulta usar `transactions.value`, faça JOIN com `categories` e use SEMPRE `CASE WHEN LOWER(c.type) IN ('debit', 'debit-transfer') THEN -ABS(t.value) ELSE ABS(t.value) END`. Assim, categorias `debit` e `debit-transfer` produzem valores negativos; os demais tipos permanecem positivos.
-            - Aplique essa expressão antes de qualquer agregação, média, comparação, ordenação ou exibição do valor. NUNCA some, faça média, compare ou exiba `t.value` diretamente. Por exemplo: `SUM(CASE WHEN LOWER(c.type) IN ('debit', 'debit-transfer') THEN -ABS(t.value) ELSE ABS(t.value) END)`. Use a mesma regra em consultas detalhadas e agregadas.
+            - Os valores armazenados em `transactions.value` são sempre positivos. Categorias com tipo `debit-transfer`, `credit-transfer` representam transferências entre contas: são neutras, NÃO são gastos nem recebimentos e devem ser excluídas de agregações de despesas ou receitas. Para saldo líquido, trate-as como zero.
+            - Para representar o sinal financeiro, faça JOIN com `categories` e use `CASE WHEN LOWER(c.type) IN ('debit-transfer', 'credit-transfer') THEN 0 WHEN LOWER(c.type) = 'debit' THEN -ABS(t.value) ELSE ABS(t.value) END`. Não classifique tipos de transferência como entrada por causa do ELSE. Para consultas específicas de gastos ou receitas, filtre também por `LOWER(c.type) = 'debit'` ou `LOWER(c.type) = 'credit'`, respectivamente.
+            - Aplique a expressão de sinal antes de qualquer agregação, média, comparação ou ordenação. NUNCA some, faça média, compare ou exiba `t.value` diretamente. Em listagens de transferências, mostre `ABS(t.value)` e a categoria, sem classificá-las como gasto ou recebimento. Use a mesma regra de neutralidade em consultas detalhadas e agregadas.
             - "onde mais gasto" / "tipo de lugar" → agrupe por `categories.name` (via JOIN com transactions).
             - "último lançamento" → ORDER BY date DESC LIMIT 1.
             - "maior gasto" → ordene pela expressão de valor com sinal ASC (despesas são negativas, então a mais negativa vem primeiro); para "maior receita", use DESC.
@@ -149,19 +152,21 @@ public class SqlGenerator {
             EXEMPLO DE SAÍDA ESPERADA
             ═══════════════════════════════════════════
             SELECT c.name AS categoria,
-                   SUM(CASE WHEN LOWER(c.type) IN ('debit', 'debit-transfer')
-                            THEN -ABS(t.value) ELSE ABS(t.value) END) AS total_gasto
+                   SUM(CASE WHEN LOWER(c.type) = 'debit'
+                            THEN -ABS(t.value) ELSE 0 END) AS total_gasto
             FROM transactions t
             JOIN categories c ON t.category_id = c.id
             WHERE t.property_id = :propertyId
               AND c.property_id = :propertyId
-              AND t.date >= '2025-03-01'
+              AND LOWER(c.type) = 'debit'
+              AND t.date >= '%3$d-03-01'
               AND LOWER(c.name) LIKE LOWER('%%alimentação%%')
             GROUP BY c.name
             ORDER BY total_gasto DESC
             """.formatted(
                 schemaProvider.getSchemaForPrompt(),
-                schemaProvider.getJoinGuide()
+                schemaProvider.getJoinGuide(),
+                LocalDate.now().getYear()
             );
     }
 
