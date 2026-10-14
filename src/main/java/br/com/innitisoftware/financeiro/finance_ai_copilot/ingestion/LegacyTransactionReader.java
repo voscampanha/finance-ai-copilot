@@ -93,6 +93,12 @@ public class LegacyTransactionReader {
         if (value instanceof java.sql.Timestamp timestamp) {
             return timestamp.toLocalDateTime().atOffset(ZoneOffset.UTC);
         }
+
+        if (value instanceof String str) {
+            LocalDateTime localDateTime = LocalDateTime.parse(str.toString().replace(" ", "T"));
+            return localDateTime.atOffset(ZoneOffset.UTC);
+        }
+
         return value == null ? null : OffsetDateTime.parse(value.toString());
     }
 
