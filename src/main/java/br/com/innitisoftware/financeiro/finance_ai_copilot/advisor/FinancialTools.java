@@ -39,7 +39,7 @@ public class FinancialTools {
     public String searchFinancialContext(
                                          @ToolParam(description = 
                                             "Pergunta original do usuário que deve orientar a busca semântica; "
-                                            + "preserve o texto e os termos usados pelo usuário, sem resumir ou reescrever")
+                                            + "preserve o texto e os termos usados pelo usuário")
                                          String query,
                                          ToolContext toolContext) {
         long startedAt = System.nanoTime();

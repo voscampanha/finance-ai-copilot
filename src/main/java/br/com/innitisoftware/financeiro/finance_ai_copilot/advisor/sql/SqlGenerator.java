@@ -97,6 +97,10 @@ public class SqlGenerator {
     // ─────────────────────────────────────────────────────────────
 
     private String buildSystemPrompt() {
+        LocalDate today = LocalDate.now();
+        LocalDate previousMonthStart = today.minusMonths(1).withDayOfMonth(1);
+        LocalDate previousMonthEnd = today.withDayOfMonth(1).minusDays(1);
+
         return """
             Você é um gerador de SQL para um banco de dados financeiro pessoal multi-tenant.
             Sua única função é converter perguntas em linguagem natural em comandos SELECT.
@@ -134,10 +138,10 @@ public class SqlGenerator {
             ═══════════════════════════════════════════
             CONVENÇÕES DE NEGÓCIO
             ═══════════════════════════════════════════
-            - Ano corrente: %3$d. Quando a pergunta mencionar uma data ou período sem informar o ano, use sempre o ano corrente (%3$d), inclusive em datas explícitas como "15 de março" ou meses como "março". Não deduza outro ano.
+            - Data de hoje: %3$s. Quando a pergunta mencionar uma data ou mês específico sem informar o ano, use o ano da data de hoje. Para períodos relativos, como "mês passado", use o intervalo calculado a partir da data de hoje, mesmo que o intervalo caia no ano anterior.
             - Datas: use o formato 'YYYY-MM-DD' entre aspas simples.
             - "este mês" = do dia 1 do mês atual até hoje.
-            - "mês passado" = do dia 1 ao último dia do mês anterior.
+            - "mês passado" = de %4$s até %5$s, inclusive. Use essas datas exatas; não escolha outro mês nem deduza o período apenas pelo ano.
             - "esta semana" = de segunda-feira até hoje.
             - "ontem" = data de ontem.
             - Os valores armazenados em `transactions.value` são sempre positivos. Categorias com tipo `debit-transfer`, `credit-transfer` representam transferências entre contas: são neutras, NÃO são gastos nem recebimentos e devem ser excluídas de agregações de despesas ou receitas. Para saldo líquido, trate-as como zero.
@@ -159,14 +163,17 @@ public class SqlGenerator {
             WHERE t.property_id = :propertyId
               AND c.property_id = :propertyId
               AND LOWER(c.type) = 'debit'
-              AND t.date >= '%3$d-03-01'
+              AND t.date >= '%4$s'
+              AND t.date <= '%5$s'
               AND LOWER(c.name) LIKE LOWER('%%alimentação%%')
             GROUP BY c.name
             ORDER BY total_gasto DESC
             """.formatted(
                 schemaProvider.getSchemaForPrompt(),
                 schemaProvider.getJoinGuide(),
-                LocalDate.now().getYear()
+                today,
+                previousMonthStart,
+                previousMonthEnd
             );
     }
 
