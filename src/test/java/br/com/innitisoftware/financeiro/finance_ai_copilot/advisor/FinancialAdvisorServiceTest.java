@@ -1,20 +1,15 @@
 package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor;
 
-import br.com.innitisoftware.financeiro.finance_ai_copilot.security.UserIdentity;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.QueryRouter.ClassificationResult;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.QueryRouter.QueryIntent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.document.Document;
-import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.ai.vectorstore.VectorStore;
 
-import java.util.List;
-import java.util.function.Consumer;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.RETURNS_SELF;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -22,43 +17,76 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class FinancialAdvisorServiceTest {
+    private static final String QUESTION = "Pergunta financeira de teste";
+    private static final long PROPERTY_ID = 17L;
+    private static final String RESPONSE = "resposta";
+
     private final ChatClient chatClient = mock(ChatClient.class);
-    private final VectorStore vectorStore = mock(VectorStore.class);
-    private final FinancialTools financialToolsConfig = mock(FinancialTools.class);
+    private final FinancialTools financialTools = mock(FinancialTools.class);
     private final DynamicSqlTool dynamicSqlTool = mock(DynamicSqlTool.class);
-    private final UserIdentity userIdentity = mock(UserIdentity.class);
+    private final QueryRouter queryRouter = mock(QueryRouter.class);
+    private final ChatClient.ChatClientRequestSpec requestSpec =
+            mock(ChatClient.ChatClientRequestSpec.class, RETURNS_SELF);
 
     private FinancialAdvisorService service;
-        private ChatClient.ChatClientRequestSpec requestSpec;
 
-    // @BeforeEach
+    @BeforeEach
     void setUp() {
-        requestSpec = mock(ChatClient.ChatClientRequestSpec.class, RETURNS_SELF);
         ChatClient.CallResponseSpec responseSpec = mock(ChatClient.CallResponseSpec.class);
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(responseSpec);
-        when(responseSpec.content()).thenReturn("resposta");
-        service = new FinancialAdvisorService(chatClient, 
-                financialToolsConfig, dynamicSqlTool, new QueryRouter());
+        when(responseSpec.content()).thenReturn(RESPONSE);
+        service = new FinancialAdvisorService(
+                chatClient, financialTools, dynamicSqlTool, queryRouter);
     }
 
-    // @Test
-    void analyticalQuestionsSkipVectorSearchAndSendEmptyContextWithTools() {
-        service.answer("Quanto gastei com mercado?", 1);
+    @Test
+    void analyticalQuestionUsesAggregationPromptAndSqlTool() {
+        when(queryRouter.classifyWithDetails(QUESTION))
+                .thenReturn(new ClassificationResult(QueryIntent.ANALYTICAL, 0.9, "agregação"));
 
-        verify(vectorStore, never()).similaritySearch(any(SearchRequest.class));
-        verify(requestSpec).tools(dynamicSqlTool, financialToolsConfig);
-        var systemPromptCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(requestSpec).system(systemPromptCaptor.capture());
-        // assertTrue(systemPromptCaptor.getValue().contains(
-        //     "DEVE chamar a ferramenta 'executeDynamicQuery'"));
-        verify(requestSpec).user(org.mockito.ArgumentMatchers
-            .<Consumer<ChatClient.PromptUserSpec>>argThat(userPrompt -> {
-                ChatClient.PromptUserSpec prompt = mock(ChatClient.PromptUserSpec.class, RETURNS_SELF);
-                userPrompt.accept(prompt);
-                verify(prompt).param(eq("context"), eq(""));
-                return true;
-            }));
+        assertEquals(RESPONSE, service.answer(QUESTION, PROPERTY_ID));
+
+        verify(queryRouter).classifyWithDetails(QUESTION);
+        verify(requestSpec).system(argThat((String prompt) ->
+                prompt.contains("AGREGAÇÃO") && prompt.contains("NUNCA calcule mentalmente")));
+        verify(requestSpec).tools(dynamicSqlTool);
+        verify(requestSpec, never()).tools(financialTools, dynamicSqlTool);
+        verify(requestSpec).toolContext(Map.of("propertyId", PROPERTY_ID, "userId", 4L));
+        verify(requestSpec).user(QUESTION);
     }
 
+    @Test
+    void relationalQuestionUsesOrderedListingPromptAndSqlTool() {
+        when(queryRouter.classifyWithDetails(QUESTION))
+                .thenReturn(new ClassificationResult(QueryIntent.RELATIONAL, 0.9, "listagem"));
+
+        assertEquals(RESPONSE, service.answer(QUESTION, PROPERTY_ID));
+
+        verify(queryRouter).classifyWithDetails(QUESTION);
+        verify(requestSpec).system(argThat((String prompt) ->
+                prompt.contains("LISTAGEM ordenada/filtrada")
+                        && prompt.contains("ORDER BY date DESC, LIMIT")));
+        verify(requestSpec).tools(dynamicSqlTool);
+        verify(requestSpec, never()).tools(financialTools, dynamicSqlTool);
+        verify(requestSpec).toolContext(Map.of("propertyId", PROPERTY_ID, "userId", 4L));
+        verify(requestSpec).user(QUESTION);
+    }
+
+    @Test
+    void contextualQuestionUsesContextSearchAndBothTools() {
+        when(queryRouter.classifyWithDetails(QUESTION))
+                .thenReturn(new ClassificationResult(QueryIntent.CONTEXTUAL, 0.9, "contexto"));
+
+        assertEquals(RESPONSE, service.answer(QUESTION, PROPERTY_ID));
+
+        verify(queryRouter).classifyWithDetails(QUESTION);
+        verify(requestSpec).system(argThat((String prompt) ->
+                prompt.contains("searchFinancialContext")
+                        && prompt.contains("NUNCA invente dados")));
+        verify(requestSpec).tools(financialTools, dynamicSqlTool);
+        verify(requestSpec, never()).tools(dynamicSqlTool);
+        verify(requestSpec).toolContext(Map.of("propertyId", PROPERTY_ID, "userId", 4L));
+        verify(requestSpec).user(QUESTION);
+    }
 }
