@@ -50,6 +50,9 @@ spring:
               url: ${NEON_MCP_URL:http://localhost:3000}
 
 app:
+  jwt:
+    secret: ${JWT_SECRET}
+    issuer: sistema-a
   vector:
     datasource:
       jdbc-url: ${NEON_JDBC_URL:jdbc:postgresql://localhost:5432/finance_ai?sslmode=disable}
@@ -81,3 +84,7 @@ app:
 
 server:
   shutdown: graceful
+
+logging:
+  level:
+    org.springframework.security: DEBUG
