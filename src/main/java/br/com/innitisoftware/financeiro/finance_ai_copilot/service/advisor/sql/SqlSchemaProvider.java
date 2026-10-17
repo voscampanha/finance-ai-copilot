@@ -1,4 +1,4 @@
-package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.sql;
+package br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.sql;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;

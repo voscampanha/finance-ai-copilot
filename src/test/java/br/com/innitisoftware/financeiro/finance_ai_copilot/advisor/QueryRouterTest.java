@@ -2,8 +2,9 @@ package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor;
 
 import org.junit.jupiter.api.Test;
 
-import br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.QueryRouter.QueryIntent;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.QueryRouter.ClassificationResult;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter.ClassificationResult;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter.QueryIntent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

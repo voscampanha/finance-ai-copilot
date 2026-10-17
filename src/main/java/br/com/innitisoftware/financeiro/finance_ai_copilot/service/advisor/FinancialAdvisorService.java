@@ -1,4 +1,4 @@
-package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor;
+package br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor;
 
 import java.util.Map;
 
@@ -7,7 +7,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
-import br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.QueryRouter.ClassificationResult;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.DynamicSqlTool;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.FinancialTools;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter.ClassificationResult;
 
 @Service
 public class FinancialAdvisorService {

@@ -1,10 +1,15 @@
 package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor;
 
-import br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.QueryRouter.ClassificationResult;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.QueryRouter.QueryIntent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
+
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.FinancialAdvisorService;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.DynamicSqlTool;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.FinancialTools;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter.ClassificationResult;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter.QueryIntent;
 
 import java.util.Map;
 

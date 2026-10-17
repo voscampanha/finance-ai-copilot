@@ -1,4 +1,4 @@
-package br.com.innitisoftware.financeiro.finance_ai_copilot.ingestion;
+package br.com.innitisoftware.financeiro.finance_ai_copilot.service.ingestion;
 
 import br.com.innitisoftware.financeiro.finance_ai_copilot.config.AiProperties;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.domain.TransactionEnrichedDTO;

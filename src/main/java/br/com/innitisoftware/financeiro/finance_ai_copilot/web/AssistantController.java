@@ -1,8 +1,8 @@
 package br.com.innitisoftware.financeiro.finance_ai_copilot.web;
 
-import br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.FinancialAdvisorService;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.ingestion.FinancialIngestionService;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.CurrentUserService;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.FinancialAdvisorService;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.ingestion.FinancialIngestionService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;

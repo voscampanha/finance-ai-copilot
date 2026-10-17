@@ -1,11 +1,10 @@
-package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor;
+package br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool;
 
 import org.springframework.stereotype.Component;
 
-import br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.sql.SqlExecutor;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.sql.SqlGenerator;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.sql.SqlValidator;
-
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.sql.SqlExecutor;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.sql.SqlGenerator;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.sql.SqlValidator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

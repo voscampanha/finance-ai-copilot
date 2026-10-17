@@ -1,4 +1,4 @@
-package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor;
+package br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

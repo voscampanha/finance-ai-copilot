@@ -2,6 +2,8 @@ package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.sql;
 
 import org.junit.jupiter.api.Test;
 
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.sql.SqlValidator;
+
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
