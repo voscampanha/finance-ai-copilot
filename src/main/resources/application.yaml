@@ -14,12 +14,6 @@ spring:
     model:
       chat: openai
       embedding: ollama
-    google:
-      genai:
-        api-key: ${GEMINI_API_KEY:}
-        chat:
-          model: ${GEMINI_CHAT_MODEL:gemini-3.8-flash}
-          temperature: 0.2
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       embedding:
