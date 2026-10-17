@@ -2,7 +2,6 @@ package br.com.innitisoftware.financeiro.finance_ai_copilot.security;
 
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
 import java.util.regex.Pattern;
 
 @Component

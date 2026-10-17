@@ -30,7 +30,6 @@ import java.util.stream.Collectors;
 @Component
 public class SqlExecutor {
 
-    private static final Logger log = LoggerFactory.getLogger(SqlExecutor.class);
     private static final Logger auditLog = LoggerFactory.getLogger("sql-audit");
 
     /** Timeout de execução em segundos. */
