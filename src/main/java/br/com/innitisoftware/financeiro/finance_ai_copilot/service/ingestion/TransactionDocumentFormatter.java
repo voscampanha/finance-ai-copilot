@@ -5,10 +5,12 @@ import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 @Component
@@ -19,10 +21,12 @@ public class TransactionDocumentFormatter {
     private static final Pattern CARD_NUMBER = Pattern.compile("(?<!\\d)(?:\\d[ -]?){13,19}(?!\\d)");
 
     public Document toDocument(TransactionEnrichedDTO dto) {
+        String deterministicId = UUID.nameUUIDFromBytes(
+                String.valueOf(dto.transactionId()).getBytes(StandardCharsets.UTF_8)).toString();
         String description = sanitizeDescription(dto.description());
         String content = "Lançamento Financeiro [Tipo: " + textOrNotInformed(dto.categoryType())
-            + "]. Responsável: " + textOrNotInformed(dto.userName())
-            + ". Data: " + textOrNotInformed(dto.transactionDate())
+                + "]. Responsável: " + textOrNotInformed(dto.userName())
+                + ". Data: " + textOrNotInformed(dto.transactionDate())
                 + ". Valor: " + formatCurrency(dto.value())
                 + ". Grupo: " + textOrNotInformed(dto.groupName())
                 + " | Categoria: " + textOrNotInformed(dto.categoryName())
@@ -44,7 +48,7 @@ public class TransactionDocumentFormatter {
         metadata.put("category_type", dto.categoryType() == null ? "" : dto.categoryType());
         metadata.put("user_name", dto.userName() == null ? "" : dto.userName());
 
-        return new Document(content, metadata);
+        return new Document(deterministicId, content, metadata);
     }
 
     private static String sanitizeDescription(String description) {
@@ -53,8 +57,8 @@ public class TransactionDocumentFormatter {
         }
 
         return CARD_NUMBER.matcher(
-                CNPJ.matcher(CPF.matcher(description).replaceAll("[CPF removido]")).replaceAll("[CNPJ removido]")
-        ).replaceAll("[número de cartão removido]");
+                CNPJ.matcher(CPF.matcher(description).replaceAll("[CPF removido]")).replaceAll("[CNPJ removido]"))
+                .replaceAll("[número de cartão removido]");
     }
 
     private static String textOrNotInformed(Object value) {
