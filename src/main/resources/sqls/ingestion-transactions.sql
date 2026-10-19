@@ -17,5 +17,6 @@ LEFT JOIN categories c ON t.category_id = c.id
 LEFT JOIN `groups` g ON c.group_id = g.id
 LEFT JOIN finance_accounts fa ON t.finance_account_id = fa.id
 LEFT JOIN users u ON fa.user_id = u.id
-WHERE t.updated_at > :updatedSince
-ORDER BY t.updated_at ASC
+WHERE (t.id > :lastProcessedId)
+   OR (t.updated_at > :lastProcessedAt AND t.id <= :lastProcessedId)
+ORDER BY t.updated_at ASC, t.id ASC

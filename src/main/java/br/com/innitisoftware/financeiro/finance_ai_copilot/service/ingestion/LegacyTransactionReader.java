@@ -33,10 +33,10 @@ public class LegacyTransactionReader {
         }
     }
 
-    public List<TransactionEnrichedDTO> findUpdatedSince(Instant updatedSince) {
+    public List<TransactionEnrichedDTO> findAfter(Instant lastProcessedAt, long lastProcessedId) {
         return jdbcTemplate.query(
                 query,
-                Map.of("updatedSince", updatedSince),
+                Map.of("lastProcessedAt", lastProcessedAt, "lastProcessedId", lastProcessedId),
                 (rs, rowNum) -> new TransactionEnrichedDTO(
                         getLong(rs, "transaction_id", "id"),
                         getLong(rs, "property_id"),

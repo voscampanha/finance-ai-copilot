@@ -72,7 +72,6 @@ app:
   ai:
     ingestion:
       fixed-delay: ${AI_INGESTION_DELAY:PT5M}
-      lookback-days: ${AI_INGESTION_LOOKBACK_DAYS:2}
       batch-size: 100
       request-delay: ${AI_INGESTION_REQUEST_DELAY:PT1S}
 
