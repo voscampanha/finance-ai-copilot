@@ -54,14 +54,6 @@ public class FinancialIngestionService {
             checkpointRepository.save(
                     lastProcessed.updatedAt().toInstant(),
                     lastProcessed.transactionId());
-            // if (start + properties.batchSize() < entries.size() && !properties.requestDelay().isZero()) {
-            //     try {
-            //         Thread.sleep(properties.requestDelay());
-            //     } catch (InterruptedException exception) {
-            //         Thread.currentThread().interrupt();
-            //         throw new IllegalStateException("Ingestão interrompida durante a pausa entre lotes", exception);
-            //     }
-            // }
         }
         return entries.size();
     }
