@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
+import br.com.innitisoftware.financeiro.finance_ai_copilot.web.ChatResponse;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.DynamicSqlTool;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.FinancialTools;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter;
@@ -31,7 +32,7 @@ public class FinancialAdvisorService {
         this.queryRouter = queryRouter;
     }
 
-    public String answer(String question, long propertyId) {
+    public ChatResponse answer(String question, long propertyId) {
         ClassificationResult result = queryRouter.classifyWithDetails(question);
 
         log.info("Rota escolhida | intent={} | confiança={} | motivo=\"{}\"",
@@ -45,7 +46,7 @@ public class FinancialAdvisorService {
         };
     }
 
-    private String executeWithSqlTool(String question,
+    private ChatResponse executeWithSqlTool(String question,
             Long propertyId,
             Long userId,
             String intent) {
@@ -73,11 +74,11 @@ public class FinancialAdvisorService {
                         "userId", userId))
                 .user(question)
                 .call()
-                .content();
+                .entity(ChatResponse.class);
     }
 
-    private String executeContextual(String question, Long propertyId, Long userId) {
-        String response = chatClient.prompt()
+    private ChatResponse executeContextual(String question, Long propertyId, Long userId) {
+        return chatClient.prompt()
                 .system("""
                         Você é um consultor financeiro pessoal. Responda SEMPRE em português do Brasil,
                         de forma objetiva e clara.
@@ -111,8 +112,6 @@ public class FinancialAdvisorService {
                         "userId", userId))
                 .user(question)
                 .call()
-                .content();
-
-        return response;
+                .entity(ChatResponse.class);
     }
 }

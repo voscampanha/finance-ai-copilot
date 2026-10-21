@@ -10,7 +10,9 @@ import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter.ClassificationResult;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter.QueryIntent;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.web.ChatResponse;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -25,6 +27,11 @@ class FinancialAdvisorServiceTest {
     private static final String QUESTION = "Pergunta financeira de teste";
     private static final long PROPERTY_ID = 17L;
     private static final String RESPONSE = "resposta";
+    private static final ChatResponse RESPONSE_DTO = new ChatResponse(
+            RESPONSE,
+            List.of("Insight de teste"),
+            List.of(new ChatResponse.DadoFinanceiro(
+                    "21/10", "Compra de teste", "Alimentação", 25.50)));
 
     private final ChatClient chatClient = mock(ChatClient.class);
     private final FinancialTools financialTools = mock(FinancialTools.class);
@@ -40,7 +47,7 @@ class FinancialAdvisorServiceTest {
         ChatClient.CallResponseSpec responseSpec = mock(ChatClient.CallResponseSpec.class);
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(responseSpec);
-        when(responseSpec.content()).thenReturn(RESPONSE);
+        when(responseSpec.entity(ChatResponse.class)).thenReturn(RESPONSE_DTO);
         service = new FinancialAdvisorService(
                 chatClient, financialTools, dynamicSqlTool, queryRouter);
     }
@@ -50,7 +57,7 @@ class FinancialAdvisorServiceTest {
         when(queryRouter.classifyWithDetails(QUESTION))
                 .thenReturn(new ClassificationResult(QueryIntent.ANALYTICAL, 0.9, "agregação"));
 
-        assertEquals(RESPONSE, service.answer(QUESTION, PROPERTY_ID));
+        assertEquals(RESPONSE_DTO, service.answer(QUESTION, PROPERTY_ID));
 
         verify(queryRouter).classifyWithDetails(QUESTION);
         verify(requestSpec).system(argThat((String prompt) ->
@@ -66,7 +73,7 @@ class FinancialAdvisorServiceTest {
         when(queryRouter.classifyWithDetails(QUESTION))
                 .thenReturn(new ClassificationResult(QueryIntent.RELATIONAL, 0.9, "listagem"));
 
-        assertEquals(RESPONSE, service.answer(QUESTION, PROPERTY_ID));
+        assertEquals(RESPONSE_DTO, service.answer(QUESTION, PROPERTY_ID));
 
         verify(queryRouter).classifyWithDetails(QUESTION);
         verify(requestSpec).system(argThat((String prompt) ->
@@ -83,7 +90,7 @@ class FinancialAdvisorServiceTest {
         when(queryRouter.classifyWithDetails(QUESTION))
                 .thenReturn(new ClassificationResult(QueryIntent.CONTEXTUAL, 0.9, "contexto"));
 
-        assertEquals(RESPONSE, service.answer(QUESTION, PROPERTY_ID));
+        assertEquals(RESPONSE_DTO, service.answer(QUESTION, PROPERTY_ID));
 
         verify(queryRouter).classifyWithDetails(QUESTION);
         verify(requestSpec).system(argThat((String prompt) ->

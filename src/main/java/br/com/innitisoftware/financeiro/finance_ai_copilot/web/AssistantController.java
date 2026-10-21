@@ -31,7 +31,7 @@ public class AssistantController {
     @PostMapping("/chat")
     public ChatResponse chat(@Valid @RequestBody ChatRequest request) {
         long propertyId = currentUserService.getPropertyIdAtual();
-        return new ChatResponse(advisor.answer(request.question(), propertyId));
+        return advisor.answer(request.question(), propertyId);
     }
 
     @PostMapping("/sync")
