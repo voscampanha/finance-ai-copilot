@@ -1,5 +1,6 @@
 package br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor;
 
+import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -65,16 +66,24 @@ public class FinancialAdvisorService {
                     """;
             default -> throw new IllegalArgumentException("Intent inválido: " + intent);
         };
-
-        return chatClient.prompt()
-                .system(systemPrompt)
-                .tools(dynamicSqlTool)
-                .toolContext(Map.of(
-                        "propertyId", propertyId,
-                        "userId", userId))
-                .user(question)
-                .call()
-                .entity(ChatResponse.class);
+        try {
+            return chatClient.prompt()
+                    .system(systemPrompt)
+                    .tools(dynamicSqlTool)
+                    .toolContext(Map.of(
+                            "propertyId", propertyId,
+                            "userId", userId))
+                    .user(question)
+                    .call()
+                    .entity(ChatResponse.class, spec -> spec.validateSchema());
+        } catch (Exception e) {
+            // Fallback: Retorna um JSON estruturado de erro amigável
+            return new ChatResponse(
+                "Desculpe, não consegui estruturar os dados no formato esperado.",
+                List.of("Ocorreu um erro de formatação na resposta do modelo."),
+                List.of()
+            );
+        }
     }
 
     private ChatResponse executeContextual(String question, Long propertyId, Long userId) {

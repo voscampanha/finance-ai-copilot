@@ -17,6 +17,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.RETURNS_SELF;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -48,6 +49,9 @@ class FinancialAdvisorServiceTest {
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(responseSpec);
         when(responseSpec.entity(ChatResponse.class)).thenReturn(RESPONSE_DTO);
+        when(responseSpec.entity(
+                org.mockito.ArgumentMatchers.eq(ChatResponse.class), any()))
+                .thenReturn(RESPONSE_DTO);
         service = new FinancialAdvisorService(
                 chatClient, financialTools, dynamicSqlTool, queryRouter);
     }
