@@ -7,6 +7,7 @@ import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import com.zaxxer.hikari.HikariDataSource;
 
 import javax.sql.DataSource;
 
@@ -29,6 +30,22 @@ public class DataSourceConfiguration {
     @Bean
     NamedParameterJdbcTemplate legacyNamedParameterJdbcTemplate(
             @Qualifier("legacyDataSource") DataSource dataSource) {
+        return new NamedParameterJdbcTemplate(dataSource);
+    }
+
+    @Bean
+    @ConfigurationProperties("app.vector.datasource")
+    HikariDataSource readOnlyDataSource() {
+        HikariDataSource dataSource = DataSourceBuilder.create()
+                .type(HikariDataSource.class)
+                .build();
+        dataSource.setReadOnly(true);
+        return dataSource;
+    }
+
+    @Bean("readOnlyJdbc")
+    NamedParameterJdbcTemplate readOnlyJdbc(
+            @Qualifier("readOnlyDataSource") DataSource dataSource) {
         return new NamedParameterJdbcTemplate(dataSource);
     }
 }

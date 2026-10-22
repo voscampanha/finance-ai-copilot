@@ -1,126 +1,130 @@
 package br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor;
 
+import java.text.NumberFormat;
+import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Map;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
+import br.com.innitisoftware.financeiro.finance_ai_copilot.security.TenantContext;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.dispatch.DispatchResult;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.dispatch.QueryDispatcher;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.catalog.MetricResult;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.mapper.CategoriaTotal;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.mapper.Lancamento;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.web.ChatResponse;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.DynamicSqlTool;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.FinancialTools;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter.ClassificationResult;
 
 @Service
 public class FinancialAdvisorService {
-    private static final Logger log = LoggerFactory.getLogger(FinancialAdvisorService.class);
 
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    private final QueryDispatcher dispatcher;
     private final ChatClient chatClient;
-    private final FinancialTools financialTools;
-    private final DynamicSqlTool dynamicSqlTool;
-    private final QueryRouter queryRouter;
+    private final TenantContext tenantContext;
 
-    public FinancialAdvisorService(ChatClient chatClient,
-            FinancialTools financialTools,
-            DynamicSqlTool dynamicSqlTool,
-            QueryRouter queryRouter) {
+    public FinancialAdvisorService(
+            QueryDispatcher dispatcher,
+            ChatClient chatClient,
+            TenantContext tenantContext) {
+        this.dispatcher = dispatcher;
         this.chatClient = chatClient;
-        this.financialTools = financialTools;
-        this.dynamicSqlTool = dynamicSqlTool;
-        this.queryRouter = queryRouter;
+        this.tenantContext = tenantContext;
     }
 
     public ChatResponse answer(String question, long propertyId) {
-        ClassificationResult result = queryRouter.classifyWithDetails(question);
-
-        log.info("Rota escolhida | intent={} | confiança={} | motivo=\"{}\"",
-                result.intent(), result.confidence(), result.reason());
-
-        var userId = 4L; // TODO: obter o ID do usuário autenticado
-        return switch (result.intent()) {
-            case ANALYTICAL -> executeWithSqlTool(question, propertyId, userId, "ANALYTICAL");
-            case RELATIONAL -> executeWithSqlTool(question, propertyId, userId, "RELATIONAL");
-            case CONTEXTUAL -> executeContextual(question, propertyId, userId);
-        };
-    }
-
-    private ChatResponse executeWithSqlTool(String question,
-            Long propertyId,
-            Long userId,
-            String intent) {
-
-        String systemPrompt = switch (intent) {
-            case "ANALYTICAL" -> """
-                    Você é um consultor financeiro. Responda em português.
-                    Para esta pergunta, gere SQL de AGREGAÇÃO (SUM, AVG, COUNT, GROUP BY).
-                    Use a ferramenta executeDynamicQuery. NUNCA calcule mentalmente.
-                    """;
-            case "RELATIONAL" -> """
-                    Você é um consultor financeiro. Responda em português.
-                    Para esta pergunta, gere SQL de LISTAGEM ordenada/filtrada
-                    (ORDER BY date DESC, LIMIT, filtros temporais).
-                    Use a ferramenta executeDynamicQuery.
-                    """;
-            default -> throw new IllegalArgumentException("Intent inválido: " + intent);
-        };
+        tenantContext.set(propertyId);
         try {
-            return chatClient.prompt()
-                    .system(systemPrompt)
-                    .tools(dynamicSqlTool)
-                    .toolContext(Map.of(
-                            "propertyId", propertyId,
-                            "userId", userId))
-                    .user(question)
-                    .call()
-                    .entity(ChatResponse.class, spec -> spec.validateSchema());
-        } catch (Exception e) {
-            // Fallback: Retorna um JSON estruturado de erro amigável
-            return new ChatResponse(
-                "Desculpe, não consegui estruturar os dados no formato esperado.",
-                List.of("Ocorreu um erro de formatação na resposta do modelo."),
-                List.of()
-            );
+            return toChatResponse(dispatcher.dispatch(question), question);
+        } finally {
+            tenantContext.clear();
         }
     }
 
-    private ChatResponse executeContextual(String question, Long propertyId, Long userId) {
-        return chatClient.prompt()
-                .system("""
-                        Você é um consultor financeiro pessoal. Responda SEMPRE em português do Brasil,
-                        de forma objetiva e clara.
+    private ChatResponse toChatResponse(DispatchResult result, String question) {
+        if (result instanceof DispatchResult.Semantic semantic) {
+            return semanticResponse(semantic.result());
+        }
+        if (result instanceof DispatchResult.Contextual contextual) {
+            if (contextual.documents().isEmpty()) {
+                return new ChatResponse(
+                        "Não encontrei informações suficientes nos seus registros para responder isso.",
+                        List.of(),
+                        List.of());
+            }
+            String documents = contextual.documents().stream()
+                    .map(document -> document.getText())
+                    .collect(Collectors.joining("\n"));
+            return chatClient.prompt()
+                    .system("""
+                            Responda em português do Brasil usando somente o contexto financeiro abaixo.
+                            Se ele não for suficiente, diga isso explicitamente. Não invente dados.
+                            Contexto:
+                            %s
+                            """.formatted(documents))
+                    .user(question)
+                    .call()
+                    .entity(ChatResponse.class);
+        }
+        Object fallback = ((DispatchResult.Fallback) result).result();
+        if (fallback instanceof ChatResponse response) {
+            return response;
+        }
+        throw new IllegalStateException("A camada de fallback retornou um tipo de resposta inesperado.");
+    }
 
-                        Você tem acesso à ferramenta `searchFinancialContext`, que busca no histórico financeiro
-                        do usuário por similaridade semântica.
+    private ChatResponse semanticResponse(MetricResult result) {
+        if (result instanceof MetricResult.Failure failure) {
+            return new ChatResponse(failure.reason(), List.of(), List.of());
+        }
 
-                        REGRAS CRÍTICAS:
-                        1. Para perguntas sobre SIGNIFICADO, DESCRIÇÃO ou CONTEXTO de lançamentos
-                           (ex: "o que era aquela compra na padaria?", "aquele gasto que anotei"),
-                           você DEVE usar `searchFinancialContext` antes de responder.
-                        2. Use SOMENTE as informações retornadas pela ferramenta. NUNCA invente dados.
-                        3. Se a ferramenta retornar "Nenhum registro relevante", diga explicitamente
-                           ao usuário: "Não encontrei informações suficientes nos seus registros
-                           para responder isso."
-                        4. Se a pergunta exigir AGREGAÇÃO (total, soma, média) ou LISTAGEM ORDENADA
-                           (último, mais recente), informe ao usuário que essa pergunta precisa ser
-                           feita de outra forma. NÃO tente calcular mentalmente.
-                        5. NUNCA exponha IDs internos, nomes de tabelas ou colunas.
-                        6. Formate valores monetários em R$ com duas casas decimais.
-                        7. Se após usar `searchFinancialContext` você não encontrar dados suficientes E a pergunta 
-                            puder ser respondida com uma consulta estruturada (listagem, ordenação), 
-                            use a ferramenta `executeDynamicQuery` para tentar uma segunda abordagem.
-                        8. PRIORIDADE: Para perguntas desta rota, tente SEMPRE `searchFinancialContext` 
-                            primeiro. Só use `executeDynamicQuery` se `searchFinancialContext` retornar vazio 
-                            E a pergunta for claramente sobre listagem ou ordenação.    
-                        """)
-                .tools(financialTools, dynamicSqlTool)
-                .toolContext(Map.of(
-                        "propertyId", propertyId,
-                        "userId", userId))
-                .user(question)
-                .call()
-                .entity(ChatResponse.class);
+        Object payload = ((MetricResult.Success) result).rows().stream()
+                .map(row -> row.get("payload"))
+                .findFirst()
+                .orElse(null);
+        if (payload instanceof List<?> list
+                && list.stream().allMatch(CategoriaTotal.class::isInstance)) {
+            List<CategoriaTotal> categories = list.stream()
+                    .map(CategoriaTotal.class::cast)
+                    .toList();
+            if (categories.isEmpty()) {
+                return new ChatResponse("Nenhum registro encontrado.", List.of(), List.of());
+            }
+
+            List<ChatResponse.DadoFinanceiro> data = categories.stream()
+                    .map(row -> new ChatResponse.DadoFinanceiro(
+                            null, null, row.categoria(), row.total().doubleValue()))
+                    .toList();
+            List<String> insights = categories.stream()
+                    .map(row -> "Total em %s no período: %s."
+                            .formatted(row.categoria(), formatCurrency(row.total())))
+                    .toList();
+            String answer = categories.size() == 1
+                    ? "O total gasto em %s no período foi %s."
+                            .formatted(categories.getFirst().categoria(),
+                                    formatCurrency(categories.getFirst().total()))
+                    : "Aqui está o total gasto por categoria.";
+            return new ChatResponse(answer, insights, data);
+        }
+        if (payload instanceof Lancamento lancamento) {
+            ChatResponse.DadoFinanceiro data = new ChatResponse.DadoFinanceiro(
+                    lancamento.data().format(DATE_FORMAT),
+                    lancamento.descricao(),
+                    lancamento.categoria(),
+                    lancamento.valor().doubleValue());
+            return new ChatResponse("Este é o lançamento mais recente.", List.of(), List.of(data));
+        }
+        if (payload == null) {
+            return new ChatResponse("Nenhum registro encontrado.", List.of(), List.of());
+        }
+        throw new IllegalStateException("A métrica retornou um payload não suportado.");
+    }
+
+    private String formatCurrency(BigDecimal amount) {
+        return NumberFormat.getCurrencyInstance(Locale.forLanguageTag("pt-BR")).format(amount);
     }
 }

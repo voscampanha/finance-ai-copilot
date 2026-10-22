@@ -1,6 +1,7 @@
 package br.com.innitisoftware.financeiro.finance_ai_copilot.service.ingestion;
 
 import br.com.innitisoftware.financeiro.finance_ai_copilot.domain.TransactionEnrichedDTO;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -25,7 +26,7 @@ public class LegacyTransactionReader {
     private final String query;
 
     public LegacyTransactionReader(
-            NamedParameterJdbcTemplate jdbcTemplate,
+            @Qualifier("legacyNamedParameterJdbcTemplate") NamedParameterJdbcTemplate jdbcTemplate,
             @Value("${app.legacy.query}") Resource queryResource) throws IOException {
         this.jdbcTemplate = jdbcTemplate;
         try (var inputStream = queryResource.getInputStream()) {

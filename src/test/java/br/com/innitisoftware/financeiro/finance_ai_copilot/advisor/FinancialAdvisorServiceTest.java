@@ -1,108 +1,80 @@
 package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.ai.chat.client.ChatClient;
 
+import br.com.innitisoftware.financeiro.finance_ai_copilot.security.TenantContext;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.FinancialAdvisorService;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.DynamicSqlTool;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.FinancialTools;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter.ClassificationResult;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.QueryRouter.QueryIntent;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.dispatch.DispatchResult;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.dispatch.QueryDispatcher;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.catalog.MetricResult;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.mapper.CategoriaTotal;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.web.ChatResponse;
 
-import java.util.List;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.RETURNS_SELF;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+
 class FinancialAdvisorServiceTest {
-    private static final String QUESTION = "Pergunta financeira de teste";
-    private static final long PROPERTY_ID = 17L;
-    private static final String RESPONSE = "resposta";
-    private static final ChatResponse RESPONSE_DTO = new ChatResponse(
-            RESPONSE,
-            List.of("Insight de teste"),
-            List.of(new ChatResponse.DadoFinanceiro(
-                    "21/10", "Compra de teste", "Alimentação", 25.50)));
 
-    private final ChatClient chatClient = mock(ChatClient.class);
-    private final FinancialTools financialTools = mock(FinancialTools.class);
-    private final DynamicSqlTool dynamicSqlTool = mock(DynamicSqlTool.class);
-    private final QueryRouter queryRouter = mock(QueryRouter.class);
-    private final ChatClient.ChatClientRequestSpec requestSpec =
-            mock(ChatClient.ChatClientRequestSpec.class, RETURNS_SELF);
+    @Test
+    void semanticDispatchUsesAuthenticatedPropertyContextAndClearsItAfterward() {
+        QueryDispatcher dispatcher = mock(QueryDispatcher.class);
+        TenantContext tenantContext = new TenantContext();
+        FinancialAdvisorService service = new FinancialAdvisorService(
+                dispatcher, mock(org.springframework.ai.chat.client.ChatClient.class), tenantContext);
+        when(dispatcher.dispatch("Pergunta financeira")).thenAnswer(invocation -> {
+            assertThat(tenantContext.requirePropertyId()).isEqualTo(17L);
+            return new DispatchResult.Semantic(
+                    new MetricResult.Success(
+                            "total_gasto_por_categoria",
+                            List.of(Map.of("payload", List.of(
+                                    new CategoriaTotal("Alimentação", new BigDecimal("125.50")),
+                                    new CategoriaTotal("Transporte", new BigDecimal("42.75"))))),
+                            2));
+        });
 
-    private FinancialAdvisorService service;
+        ChatResponse response = service.answer("Pergunta financeira", 17L);
 
-    @BeforeEach
-    void setUp() {
-        ChatClient.CallResponseSpec responseSpec = mock(ChatClient.CallResponseSpec.class);
-        when(chatClient.prompt()).thenReturn(requestSpec);
-        when(requestSpec.call()).thenReturn(responseSpec);
-        when(responseSpec.entity(ChatResponse.class)).thenReturn(RESPONSE_DTO);
-        when(responseSpec.entity(
-                org.mockito.ArgumentMatchers.eq(ChatResponse.class), any()))
-                .thenReturn(RESPONSE_DTO);
-        service = new FinancialAdvisorService(
-                chatClient, financialTools, dynamicSqlTool, queryRouter);
+        assertThat(response.answer()).isEqualTo("Aqui está o total gasto por categoria.");
+        assertThat(response.data())
+                .extracting(ChatResponse.DadoFinanceiro::categoria)
+                .containsExactly("Alimentação", "Transporte");
+        assertThat(response.data())
+                .extracting(ChatResponse.DadoFinanceiro::valor)
+                .containsExactly(125.50, 42.75);
+        assertThat(response.insights()).containsExactly(
+                "Total em Alimentação no período: R$ 125,50.",
+                "Total em Transporte no período: R$ 42,75.");
+        verify(dispatcher).dispatch("Pergunta financeira");
+        assertThatThrownBy(tenantContext::requirePropertyId).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    void analyticalQuestionUsesAggregationPromptAndSqlTool() {
-        when(queryRouter.classifyWithDetails(QUESTION))
-                .thenReturn(new ClassificationResult(QueryIntent.ANALYTICAL, 0.9, "agregação"));
+    void semanticCategoryTotalIncludesSummaryAndLeavesTransactionFieldsEmpty() {
+        QueryDispatcher dispatcher = mock(QueryDispatcher.class);
+        FinancialAdvisorService service = new FinancialAdvisorService(
+                dispatcher, mock(org.springframework.ai.chat.client.ChatClient.class), new TenantContext());
+        when(dispatcher.dispatch("Qual total gasto com mercado este mês?"))
+                .thenReturn(new DispatchResult.Semantic(
+                        new MetricResult.Success(
+                                "total_gasto_por_categoria",
+                                List.of(Map.of("payload", List.of(
+                                        new CategoriaTotal("Mercado", new BigDecimal("1733.83"))))),
+                                1)));
 
-        assertEquals(RESPONSE_DTO, service.answer(QUESTION, PROPERTY_ID));
+        ChatResponse response = service.answer("Qual total gasto com mercado este mês?", 17L);
 
-        verify(queryRouter).classifyWithDetails(QUESTION);
-        verify(requestSpec).system(argThat((String prompt) ->
-                prompt.contains("AGREGAÇÃO") && prompt.contains("NUNCA calcule mentalmente")));
-        verify(requestSpec).tools(dynamicSqlTool);
-        verify(requestSpec, never()).tools(financialTools, dynamicSqlTool);
-        verify(requestSpec).toolContext(Map.of("propertyId", PROPERTY_ID, "userId", 4L));
-        verify(requestSpec).user(QUESTION);
-    }
-
-    @Test
-    void relationalQuestionUsesOrderedListingPromptAndSqlTool() {
-        when(queryRouter.classifyWithDetails(QUESTION))
-                .thenReturn(new ClassificationResult(QueryIntent.RELATIONAL, 0.9, "listagem"));
-
-        assertEquals(RESPONSE_DTO, service.answer(QUESTION, PROPERTY_ID));
-
-        verify(queryRouter).classifyWithDetails(QUESTION);
-        verify(requestSpec).system(argThat((String prompt) ->
-                prompt.contains("LISTAGEM ordenada/filtrada")
-                        && prompt.contains("ORDER BY date DESC, LIMIT")));
-        verify(requestSpec).tools(dynamicSqlTool);
-        verify(requestSpec, never()).tools(financialTools, dynamicSqlTool);
-        verify(requestSpec).toolContext(Map.of("propertyId", PROPERTY_ID, "userId", 4L));
-        verify(requestSpec).user(QUESTION);
-    }
-
-    @Test
-    void contextualQuestionUsesContextSearchAndBothTools() {
-        when(queryRouter.classifyWithDetails(QUESTION))
-                .thenReturn(new ClassificationResult(QueryIntent.CONTEXTUAL, 0.9, "contexto"));
-
-        assertEquals(RESPONSE_DTO, service.answer(QUESTION, PROPERTY_ID));
-
-        verify(queryRouter).classifyWithDetails(QUESTION);
-        verify(requestSpec).system(argThat((String prompt) ->
-                prompt.contains("searchFinancialContext")
-                        && prompt.contains("NUNCA invente dados")));
-        verify(requestSpec).tools(financialTools, dynamicSqlTool);
-        verify(requestSpec, never()).tools(dynamicSqlTool);
-        verify(requestSpec).toolContext(Map.of("propertyId", PROPERTY_ID, "userId", 4L));
-        verify(requestSpec).user(QUESTION);
+        assertThat(response.answer())
+                .isEqualTo("O total gasto em Mercado no período foi R$ 1.733,83.");
+        assertThat(response.insights())
+                .containsExactly("Total em Mercado no período: R$ 1.733,83.");
+        assertThat(response.data()).containsExactly(new ChatResponse.DadoFinanceiro(
+                null, null, "Mercado", 1733.83));
     }
 }

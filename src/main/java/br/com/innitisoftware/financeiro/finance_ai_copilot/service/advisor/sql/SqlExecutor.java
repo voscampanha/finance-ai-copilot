@@ -2,6 +2,7 @@ package br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.sql;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -43,7 +44,8 @@ public class SqlExecutor {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
-    public SqlExecutor(NamedParameterJdbcTemplate jdbcTemplate) {
+    public SqlExecutor(
+            @Qualifier("legacyNamedParameterJdbcTemplate") NamedParameterJdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
