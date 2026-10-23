@@ -1,9 +1,6 @@
 package br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.dispatch;
 
-import java.util.List;
 import java.util.Objects;
-
-import org.springframework.ai.document.Document;
 
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.catalog.MetricResult;
 
@@ -16,12 +13,15 @@ public sealed interface DispatchResult
         }
     }
 
-    record Contextual(List<Document> documents) implements DispatchResult {
+    record Contextual(String context) implements DispatchResult {
         public Contextual {
-            documents = List.copyOf(documents);
+            Objects.requireNonNull(context);
         }
     }
 
-    record Fallback(Object result) implements DispatchResult {
+    record Fallback(String result) implements DispatchResult {
+        public Fallback {
+            Objects.requireNonNull(result);
+        }
     }
 }

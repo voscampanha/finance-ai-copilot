@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.stereotype.Component;
 
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.catalog.MetricDescriptor;
@@ -41,14 +42,20 @@ public class MetricSelector {
             String response = chatClient.prompt()
                     .system("""
                             Você é um seletor de métricas. Dado o catálogo abaixo e a pergunta
-                            do usuário, escolha a métrica mais adequada e extraia os parâmetros.
-                            Se nenhuma métrica se aplicar, retorne {"metric": null}.
-                            Nunca invente nomes de métricas ou parâmetros.
+                            do usuário, escolha EXATAMENTE UMA métrica da lista.
+                            Antes de escolher, verifique se a pergunta está no bloco "NÃO USE QUANDO"
+                            de alguma métrica. Se estiver, não escolha essa métrica.                            
+                            Se nenhuma se aplicar com confiança, retorne
+                            {"metric": "__none__", "params": {}}.
+                            Nunca retorne null, nunca omita o campo 'metric',
+                            nunca invente nomes de métricas ou parâmetros.
                             Responda APENAS JSON, sem texto adicional.
                             Catálogo:
                             %s
                             """.formatted(catalogJson))
                     .user(question)
+                    .options(OpenAiChatOptions.builder()
+                            .temperature(0.0))
                     .call()
                     .content();
             SelectionParseResult parseResult = parseSelectionWithReason(response, catalog);
@@ -134,6 +141,11 @@ public class MetricSelector {
 
     private SelectionParseResult parseSelectionWithReason(
             String response, List<MetricDescriptor> catalog) {
+                
+        Logger logger = LoggerFactory.getLogger(MetricSelector.class);
+        logger.info("Parsing metric selection response | response={} | catalogMetrics={}",
+                response == null ? null : response,
+                catalog.stream().map(MetricDescriptor::name).toList());
         if (response == null || response.isBlank()) {
             return SelectionParseResult.rejected("empty_response", null);
         }
@@ -165,6 +177,9 @@ public class MetricSelector {
             JsonNode metric = root.get("metric");
             if (metric.isNull()) {
                 return SelectionParseResult.rejected("model_selected_no_metric", null);
+            }
+            if (metric.isTextual() && "__none__".equals(metric.asText())) {
+                return SelectionParseResult.rejected("model_selected_none_sentinel", "__none__");
             }
             if (!metric.isTextual()) {
                 return SelectionParseResult.rejected("metric_is_not_string", null);

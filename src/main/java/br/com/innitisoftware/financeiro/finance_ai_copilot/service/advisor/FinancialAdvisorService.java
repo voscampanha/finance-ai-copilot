@@ -5,7 +5,6 @@ import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
@@ -50,31 +49,43 @@ public class FinancialAdvisorService {
             return semanticResponse(semantic.result());
         }
         if (result instanceof DispatchResult.Contextual contextual) {
-            if (contextual.documents().isEmpty()) {
+            if (contextual.context().isBlank()) {
                 return new ChatResponse(
                         "Não encontrei informações suficientes nos seus registros para responder isso.",
                         List.of(),
                         List.of());
             }
-            String documents = contextual.documents().stream()
-                    .map(document -> document.getText())
-                    .collect(Collectors.joining("\n"));
             return chatClient.prompt()
                     .system("""
                             Responda em português do Brasil usando somente o contexto financeiro abaixo.
                             Se ele não for suficiente, diga isso explicitamente. Não invente dados.
-                            Contexto:
+                            """)
+                    .user("""
+                            Pergunta: %s
+
+                            Contexto financeiro recuperado:
                             %s
-                            """.formatted(documents))
-                    .user(question)
+                            """.formatted(question, contextual.context()))
                     .call()
                     .entity(ChatResponse.class);
         }
-        Object fallback = ((DispatchResult.Fallback) result).result();
-        if (fallback instanceof ChatResponse response) {
-            return response;
+        String fallback = ((DispatchResult.Fallback) result).result();
+        if (fallback.isBlank()) {
+            return new ChatResponse("Nenhum registro encontrado.", List.of(), List.of());
         }
-        throw new IllegalStateException("A camada de fallback retornou um tipo de resposta inesperado.");
+        return chatClient.prompt()
+                .system("""
+                        Responda em português do Brasil, de forma clara e concisa, usando somente os resultados
+                        fornecidos. Não invente informações. Se não houver dados suficientes, diga isso explicitamente.
+                        """)
+                .user("""
+                        Pergunta: %s
+
+                        Resultado da consulta financeira:
+                        %s
+                        """.formatted(question, fallback))
+                .call()
+                .entity(ChatResponse.class, spec -> spec.validateSchema());
     }
 
     private ChatResponse semanticResponse(MetricResult result) {
@@ -82,7 +93,8 @@ public class FinancialAdvisorService {
             return new ChatResponse(failure.reason(), List.of(), List.of());
         }
 
-        Object payload = ((MetricResult.Success) result).rows().stream()
+        MetricResult.Success success = (MetricResult.Success) result;
+        Object payload = success.rows().stream()
                 .map(row -> row.get("payload"))
                 .findFirst()
                 .orElse(null);
@@ -116,7 +128,13 @@ public class FinancialAdvisorService {
                     lancamento.descricao(),
                     lancamento.categoria(),
                     lancamento.valor().doubleValue());
-            return new ChatResponse("Este é o lançamento mais recente.", List.of(), List.of(data));
+            String answer = switch (success.metricName()) {
+                case "maior_lancamento" -> "Este é o lançamento de maior valor.";
+                case "ultimo_lancamento" -> "Este é o lançamento mais recente.";
+                default -> throw new IllegalStateException(
+                        "A métrica retornou um lançamento sem resposta configurada: " + success.metricName());
+            };
+            return new ChatResponse(answer, List.of(), List.of(data));
         }
         if (payload == null) {
             return new ChatResponse("Nenhum registro encontrado.", List.of(), List.of());

@@ -2,12 +2,17 @@ package br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.disp
 
 import java.text.Normalizer;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.stereotype.Component;
 
+import br.com.innitisoftware.financeiro.finance_ai_copilot.security.TenantContext;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.DynamicSqlTool;
+import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.FinancialTools;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.SemanticLayerTools;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.catalog.MetricResult;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.catalog.UnknownMetricException;
@@ -21,18 +26,21 @@ public class QueryDispatcher {
 
     private final SemanticLayerTools semanticLayer;
     private final MetricSelector metricSelector;
-    private final RagService ragService;
-    private final TextToSqlService textToSqlService;
+    private final FinancialTools financialTools;
+    private final DynamicSqlTool dynamicSqlTool;
+    private final TenantContext tenantContext;
 
     public QueryDispatcher(
             SemanticLayerTools semanticLayer,
             MetricSelector metricSelector,
-            RagService ragService,
-            TextToSqlService textToSqlService) {
+            FinancialTools financialTools,
+            DynamicSqlTool dynamicSqlTool,
+            TenantContext tenantContext) {
         this.semanticLayer = semanticLayer;
         this.metricSelector = metricSelector;
-        this.ragService = ragService;
-        this.textToSqlService = textToSqlService;
+        this.financialTools = financialTools;
+        this.dynamicSqlTool = dynamicSqlTool;
+        this.tenantContext = tenantContext;
     }
 
     public DispatchResult dispatch(String question) {
@@ -53,10 +61,12 @@ public class QueryDispatcher {
 
         if (isContextual(question)) {
             LOGGER.info("Query routed to contextual retrieval");
-            return new DispatchResult.Contextual(ragService.retrieve(question));
+            return new DispatchResult.Contextual(
+                    financialTools.searchFinancialContext(question, toolContext()));
         }
         LOGGER.info("Query routed to text-to-sql | reason=no_metric_selected");
-        return new DispatchResult.Fallback(textToSqlService.execute(question));
+        return new DispatchResult.Fallback(
+                dynamicSqlTool.executeDynamicQuery(question, toolContext()));
     }
 
     boolean isContextual(String question) {
@@ -64,5 +74,9 @@ public class QueryDispatcher {
                 .replaceAll("\\p{M}", "")
                 .toLowerCase(Locale.ROOT);
         return CONTEXTUAL.matcher(normalized).find();
+    }
+
+    private ToolContext toolContext() {
+        return new ToolContext(Map.of("propertyId", tenantContext.requirePropertyId()));
     }
 }
