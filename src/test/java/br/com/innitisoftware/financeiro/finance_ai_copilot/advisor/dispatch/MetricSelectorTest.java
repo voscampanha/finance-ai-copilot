@@ -2,6 +2,7 @@ package br.com.innitisoftware.financeiro.finance_ai_copilot.advisor.dispatch;
 
 import java.util.List;
 import java.util.Map;
+import java.time.Clock;
 import java.time.LocalDate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,7 +30,7 @@ class MetricSelectorTest {
             mock(ChatClient.ChatClientRequestSpec.class, RETURNS_SELF);
     private final ChatClient.CallResponseSpec responseSpec = mock(ChatClient.CallResponseSpec.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final MetricSelector selector = new MetricSelector(chatClient, objectMapper);
+    private final MetricSelector selector = new MetricSelector(chatClient, objectMapper, Clock.systemUTC());
     private final List<MetricDescriptor> catalog = List.of(new MetricDescriptor(
             "total_gasto_por_categoria",
             "Total por categoria",

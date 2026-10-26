@@ -1,0 +1,179 @@
+# src/test/resources/golden-set/metric-selector-golden.yaml
+#
+# Data de referência fixa usada em TODAS as resoluções de datas relativas:
+referenceDate: "2026-10-26"
+#
+# Convenção: "__none__" em metricaEsperada = deve cair no fallback (RAG/SQL).
+# Params são comparados por igualdade de Map<String,String>. Strings de data em ISO-8601.
+# Para comparar valores não-string (ex.: categoria ausente), use a chave ausente no mapa
+# (o teste considera "ausente" != "presente com null").
+
+cases:
+  - id: feliz-total-gasto-categoria-explicita
+    pergunta: "Quanto gastei com alimentação em outubro?"
+    metricaEsperada: total_gasto_por_categoria
+    paramsEsperados: { data_inicio: "2026-10-01", data_fim: "2026-10-31", categoria: "alimentacao" }
+    justificativa: "Soma por categoria com mês fechado — caso feliz canônico."
+
+  - id: relativa-mes-passado-sem-categoria
+    pergunta: "Total de gastos por categoria no mês passado"
+    metricaEsperada: total_gasto_por_categoria
+    paramsEsperados: { data_inicio: "2026-09-01", data_fim: "2026-09-30" }
+    justificativa: "Data relativa + agregação sem filtro de categoria."
+
+  - id: giria-torrei-esse-mes
+    pergunta: "Quanto eu torrei em transporte esse mês?"
+    metricaEsperada: total_gasto_por_categoria
+    paramsEsperados: { data_inicio: "2026-10-01", data_fim: "2026-10-26", categoria: "transporte" }
+    justificativa: "Gíria 'torrei' e 'esse mês' devem mapear para a métrica de soma; intervalo até hoje."
+
+  - id: feliz-ultimo-lancamento-sem-filtro
+    pergunta: "Qual foi meu último lançamento?"
+    metricaEsperada: ultimo_lancamento
+    paramsEsperados: {}
+    justificativa: "Caso feliz sem filtro."
+
+  - id: feliz-ultimo-lancamento-com-categoria
+    pergunta: "Mostra o último gasto de mercado"
+    metricaEsperada: ultimo_lancamento
+    paramsEsperados: { categoria: "mercado" }
+    justificativa: "Caso feliz com filtro de categoria."
+
+  # ---- AMBÍGUO CRÍTICO — motivou o ticket ----
+  - id: ambiguo-maior-vs-total-gasto
+    pergunta: "Qual meu maior gasto com mercado este mês?"
+    metricaEsperada: maior_lancamento
+    paramsEsperados: { data_inicio: "2026-10-01", data_fim: "2026-10-26", categoria: "mercado" }
+    justificativa: "'Maior gasto' = lançamento único de valor máximo, NÃO a soma. Contraste direto com o caso ambiguo-total-vs-maior."
+
+  - id: relativa-maior-compra-ano-passado
+    pergunta: "Maior compra do ano passado"
+    metricaEsperada: maior_lancamento
+    paramsEsperados: { data_inicio: "2025-01-01", data_fim: "2025-12-31" }
+    justificativa: "'Maior compra' ≈ maior lançamento; ano civil anterior fechado."
+
+  - id: feliz-media-gasto-semestre
+    pergunta: "Quanto gastei em média por mês no último semestre?"
+    metricaEsperada: media_gasto_mensal
+    paramsEsperados: { data_inicio: "2026-04-27", data_fim: "2026-10-26" }
+    justificativa: "Média mensal no último semestre até hoje."
+
+  - id: variacao-media-anual
+    pergunta: "Média de gastos mensais desse ano"
+    metricaEsperada: media_gasto_mensal
+    paramsEsperados: { data_inicio: "2026-01-01", data_fim: "2026-10-26" }
+    justificativa: "Variação linguística da média; ano corrente até hoje."
+
+  - id: feliz-saldo-conta-corrente
+    pergunta: "Como está o saldo da conta corrente?"
+    metricaEsperada: saldo_por_conta
+    paramsEsperados: { data_referencia: "2026-10-26" }
+    justificativa: "Saldo em uma data de referência; ausência de data → hoje."
+
+  - id: relativa-saldo-ontem
+    pergunta: "Saldo da poupança ontem"
+    metricaEsperada: saldo_por_conta
+    paramsEsperados: { data_referencia: "2026-10-25" }
+    justificativa: "'Ontem' resolvido contra a data de referência fixa."
+
+  # ---- TYPO LEVE ----
+  - id: typo-maior-gasto
+    pergunta: "Qual meu maoir gasto com mercado este mês?"
+    metricaEsperada: maior_lancamento
+    paramsEsperados: { data_inicio: "2026-10-01", data_fim: "2026-10-26", categoria: "mercado" }
+    justificativa: "Typo 'maoir' não pode derrubar a intenção; robustez contra erro de digitação leve."
+
+  # ---- __none__ ----
+  - id: none-listagem
+    pergunta: "Liste todos os lançamentos de setembro"
+    metricaEsperada: "__none__"
+    paramsEsperados: {}
+    justificativa: "Listagem — não é agregação; deve cair no fallback."
+
+  - id: none-contagem
+    pergunta: "Quantos lançamentos eu tive esse mês?"
+    metricaEsperada: "__none__"
+    paramsEsperados: {}
+    justificativa: "Contagem — nenhuma métrica do catálogo."
+
+  - id: none-comparacao
+    pergunta: "Compare meus gastos de setembro com outubro"
+    metricaEsperada: "__none__"
+    paramsEsperados: {}
+    justificativa: "Comparação entre períodos — fora do escopo de uma única métrica."
+
+  - id: none-contextual
+    pergunta: "E aí, como estou financeiramente?"
+    metricaEsperada: "__none__"
+    paramsEsperados: {}
+    justificativa: "Pergunta contextual/aberta."
+
+  - id: none-ambigua-sem-janela
+    pergunta: "Qual foi meu maior gasto?"
+    metricaEsperada: "__none__"
+    paramsEsperados: {}
+    justificativa: "maior_lancamento exige janela; preferível cair no fallback a inventar data_inicio/data_fim."
+
+  # ---- AMBÍGUO LEVE: total vs maior (contraprova do #6) ----
+  - id: ambiguo-total-vs-maior
+    pergunta: "Quanto gastei em mercado esse mês?"
+    metricaEsperada: total_gasto_por_categoria
+    paramsEsperados: { data_inicio: "2026-10-01", data_fim: "2026-10-26", categoria: "mercado" }
+    justificativa: "'Quanto gastei' + 'gastei' = soma. Contrapõe ambiguo-maior-vs-total-gasto — o par deve ser resolvido consistentemente."
+
+  # ---- LIMITAÇÃO CONHECIDA ----
+  - id: limitacao-filtro-negativo
+    pergunta: "Quanto gastei no total em outubro, sem contar mercado?"
+    metricaEsperada: total_gasto_por_categoria
+    paramsEsperados: { data_inicio: "2026-10-01", data_fim: "2026-10-31" }
+    justificativa: "Catálogo não suporta exclusão de categoria; a métrica de soma ainda é a mais próxima. Ver nota de manutenção — se suportar 'excluir_categoria' no futuro, atualizar este caso."
+
+  - id: relativa-saldo-sem-data
+    pergunta: "Qual o saldo da minha conta?"
+    metricaEsperada: saldo_por_conta
+    paramsEsperados: { data_referencia: "2026-10-26" }
+    justificativa: "Sem data explícita → data_referencia = hoje (data de referência fixa)."
+
+  - id: feliz-gastos-por-grupo-sem-filtro
+    pergunta: "Quanto gastei por grupo esse mês?"
+    metricaEsperada: gastos_por_grupo
+    paramsEsperados: { data_inicio: "2026-10-01", data_fim: "2026-10-26" }
+    justificativa: "Caso feliz canônico: 'por grupo' + janela relativa até hoje, sem filtro."
+
+  - id: feliz-gastos-por-grupo-grupo-especifico
+    pergunta: "Gastos do grupo moradia no mês passado"
+    metricaEsperada: gastos_por_grupo
+    paramsEsperados: { data_inicio: "2026-09-01", data_fim: "2026-09-30", grupo: "moradia" }
+    justificativa: "Caso feliz com filtro de grupo; 'mês passado' resolvido contra 2026-10-26."
+
+  - id: variacao-gastos-por-grupo-quebra
+    pergunta: "Faz uma quebra dos meus gastos por grupo em outubro"
+    metricaEsperada: gastos_por_grupo
+    paramsEsperados: { data_inicio: "2026-10-01", data_fim: "2026-10-31" }
+    justificativa: "Variação linguística: 'quebra por grupo' = mesma intenção de agrupamento; outubro fechado."
+
+  - id: variacao-gastos-por-grupo-typo
+    pergunta: "Quanto gastei pro grupo lazer esse mes?"
+    metricaEsperada: gastos_por_grupo
+    paramsEsperados: { data_inicio: "2026-10-01", data_fim: "2026-10-26", grupo: "lazer" }
+    justificativa: "Typos leves ('pro', 'esse mes' sem acento) não podem derrubar a intenção nem confundir com total_gasto_por_categoria."
+
+  # ---- AMBÍGUO CRÍTICO: por grupo vs por categoria ----
+  - id: ambiguo-grupo-vs-categoria
+    pergunta: "Quanto gastei por categoria esse mês?"
+    metricaEsperada: total_gasto_por_categoria
+    paramsEsperados: { data_inicio: "2026-10-01", data_fim: "2026-10-26" }
+    justificativa: "Contraprova do par: a palavra 'categoria' ancora em total_gasto_por_categoria, NÃO em gastos_por_grupo. Este caso e feliz-gastos-por-grupo-sem-filtro devem ser resolvidos de forma mutuamente consistente; se um dos dois cair no outro, o par está colado."
+
+  # ---- __none__ que PARECE gastos_por_grupo mas não é ----
+  - id: none-grupo-sem-janela
+    pergunta: "Me mostra os gastos por grupo"
+    metricaEsperada: "__none__"
+    paramsEsperados: {}
+    justificativa: "gastos_por_grupo exige data_inicio/data_fim; sem janela o seletor não deve inventar período — prefira fallback. (Mesma lógica de none-ambigua-sem-janela.)"
+
+  - id: none-grupo-e-categoria-juntos
+    pergunta: "Quanto gastei por grupo e por categoria esse mês?"
+    metricaEsperada: "__none__"
+    paramsEsperados: {}
+    justificativa: "Duas quebras pedidas ao mesmo tempo: o catálogo só agrega por UM eixo por métrica. Preferível cair no fallback (Text-to-SQL) a escolher uma das duas."

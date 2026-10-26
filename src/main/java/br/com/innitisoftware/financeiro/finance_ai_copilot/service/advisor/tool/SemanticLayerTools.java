@@ -6,7 +6,6 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 import br.com.innitisoftware.financeiro.finance_ai_copilot.security.TenantContext;
-import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.catalog.InvalidMetricParamException;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.catalog.MetricCatalog;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.catalog.MetricDefinition;
 import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.catalog.MetricDescriptor;

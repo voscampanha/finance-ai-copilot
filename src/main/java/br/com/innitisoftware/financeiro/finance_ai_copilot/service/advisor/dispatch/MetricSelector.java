@@ -1,6 +1,7 @@
 package br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.dispatch;
 
 import java.text.Normalizer;
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
@@ -30,10 +31,12 @@ public class MetricSelector {
 
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
+    private final Clock clock;
 
-    public MetricSelector(ChatClient chatClient, ObjectMapper objectMapper) {
+    public MetricSelector(ChatClient chatClient, ObjectMapper objectMapper, Clock clock) {
         this.chatClient = chatClient;
         this.objectMapper = objectMapper;
+        this.clock = clock;
     }
 
     public Optional<MetricSelection> trySelect(String question, List<MetricDescriptor> catalog) {
@@ -91,7 +94,7 @@ public class MetricSelector {
         String normalizedQuestion = Normalizer.normalize(question, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "")
                 .toLowerCase(Locale.ROOT);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         LocalDate start;
         LocalDate end;
         String period;
