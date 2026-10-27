@@ -11,15 +11,12 @@ import br.com.innitisoftware.financeiro.finance_ai_copilot.service.advisor.tool.
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.ai.chat.client.ChatClient;
-import org.yaml.snakeyaml.Yaml;
 
 import java.io.InputStream;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.*;
