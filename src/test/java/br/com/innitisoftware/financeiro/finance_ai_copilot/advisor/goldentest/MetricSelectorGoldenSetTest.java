@@ -27,6 +27,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.RETURNS_SELF;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Teste de regressão do MetricSelector contra o golden set.
@@ -145,14 +148,16 @@ class MetricSelectorGoldenSetTest {
     }
 
     private static ChatClient mockChatClientReturning(String rawJson) {
-        // Ajuste ao seu MockChatClient real (Spring AI 4).
-        // Exemplo com Mockito:
-        // ChatClient cc = mock(ChatClient.class);
-        // ChatClient.CallResponseSpec spec = mock(ChatClient.CallResponseSpec.class);
-        // when(cc.prompt()).thenReturn(mock(ChatClient.ChatClientRequestSpec.class));
-        // ... when(...).call().content().thenReturn(rawJson);
-        // Ou use o MockChatClient nativo do Spring AI, se disponível.
-        throw new UnsupportedOperationException("Wire Mockito / MockChatClient aqui");
+        ChatClient chatClient = mock(ChatClient.class);
+        ChatClient.ChatClientRequestSpec requestSpec =
+                mock(ChatClient.ChatClientRequestSpec.class, RETURNS_SELF);
+        ChatClient.CallResponseSpec responseSpec = mock(ChatClient.CallResponseSpec.class);
+
+        when(chatClient.prompt()).thenReturn(requestSpec);
+        when(requestSpec.call()).thenReturn(responseSpec);
+        when(responseSpec.content()).thenReturn(rawJson);
+
+        return chatClient;
     }
 
     private static List<MetricDescriptor> buildCatalog() {
@@ -176,7 +181,12 @@ class MetricSelectorGoldenSetTest {
                                 param("data_fim", ParamType.DATE, true, "ISO date"))),
                 new MetricDescriptor("saldo_por_conta",
                         "Saldo da conta na data de referência.",
-                        List.of(param("data_referencia", ParamType.DATE, false, "ISO date, opcional; default hoje"))));
+                        List.of(param("data_referencia", ParamType.DATE, false, "ISO date, opcional; default hoje"))),
+                new MetricDescriptor("gastos_por_grupo",
+                        "Soma de gastos no período, agrupados por grupo.",
+                        List.of(param("data_inicio", ParamType.DATE, true, "ISO date, início do período"),
+                                param("data_fim", ParamType.DATE, true, "ISO date, fim do período")))
+                    );
     }
 
     private static ParamDescriptor param(String name, ParamType type, boolean required, String desc) {

@@ -85,6 +85,7 @@
 			<groupId>com.fasterxml.jackson.dataformat</groupId>
 			<artifactId>jackson-dataformat-yaml</artifactId>
 		</dependency>
+		
 	</dependencies>
 	<dependencyManagement>
 		<dependencies>
