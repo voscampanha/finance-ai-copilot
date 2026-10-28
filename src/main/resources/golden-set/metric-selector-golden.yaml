@@ -12,7 +12,7 @@ cases:
   - id: feliz-total-gasto-categoria-explicita
     pergunta: "Quanto gastei com alimentação em outubro?"
     metricaEsperada: total_gasto_por_categoria
-    paramsEsperados: { data_inicio: "2026-10-01", data_fim: "2026-10-31", categoria: "alimentacao" }
+    paramsEsperados: { data_inicio: "2026-10-01", data_fim: "2026-10-31", categoria: "alimentação" }
     justificativa: "Soma por categoria com mês fechado — caso feliz canônico."
 
   - id: relativa-mes-passado-sem-categoria
@@ -55,7 +55,7 @@ cases:
   - id: feliz-media-gasto-semestre
     pergunta: "Quanto gastei em média por mês no último semestre?"
     metricaEsperada: media_gasto_mensal
-    paramsEsperados: { data_inicio: "2026-04-27", data_fim: "2026-10-26" }
+    paramsEsperados: { data_inicio: "2026-04-26", data_fim: "2026-10-26" }
     justificativa: "Média mensal no último semestre até hoje."
 
   - id: variacao-media-anual

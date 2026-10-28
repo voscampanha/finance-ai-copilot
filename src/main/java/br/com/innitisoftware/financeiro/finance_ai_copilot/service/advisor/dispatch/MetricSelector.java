@@ -4,6 +4,7 @@ import java.text.Normalizer;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.Month;
 import java.time.temporal.TemporalAdjusters;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +43,7 @@ public class MetricSelector {
     public Optional<MetricSelection> trySelect(String question, List<MetricDescriptor> catalog) {
         try {
             String catalogJson = objectMapper.writeValueAsString(catalog);
+            LocalDate today = LocalDate.now(clock);
             String response = chatClient.prompt()
                     .system("""
                             Você é um seletor de métricas. Dado o catálogo abaixo e a pergunta
@@ -52,10 +54,19 @@ public class MetricSelector {
                             {"metric": "__none__", "params": {}}.
                             Nunca retorne null, nunca omita o campo 'metric',
                             nunca invente nomes de métricas ou parâmetros.
+                            Data atual: %1$s.
+                            Interprete datas relativas sempre em relação a essa data:
+                            - "este mês", "esse mês" ou "mês atual": do primeiro dia do mês até hoje.
+                            - "esta semana" ou "semana atual": de segunda-feira até hoje.
+                            - "este ano", "esse ano" ou "ano atual": de 1º de janeiro até hoje.
+                            - "mês passado" e "ano passado": período calendário anterior completo.
+                            Um mês mencionado sem ano refere-se ao ano da data atual; nesse caso,
+                            use o mês calendário completo. Se a pergunta informar o ano, respeite-o.
+                            Para parâmetros de data, use o formato ISO YYYY-MM-DD.
                             Responda APENAS JSON, sem texto adicional.
                             Catálogo:
-                            %s
-                            """.formatted(catalogJson))
+                            %2$s
+                            """.formatted(today, catalogJson))
                     .user(question)
                     .options(OpenAiChatOptions.builder()
                             .temperature(0.0))
@@ -99,7 +110,7 @@ public class MetricSelector {
         LocalDate end;
         String period;
 
-        if (normalizedQuestion.matches(".*\\b(este mes|mes atual)\\b.*")) {
+        if (normalizedQuestion.matches(".*\\b(este mes|esse mes|neste mes|nesse mes|mes atual|mes corrente)\\b.*")) {
             start = today.withDayOfMonth(1);
             end = today;
             period = "current_month";
@@ -107,10 +118,22 @@ public class MetricSelector {
             end = today.withDayOfMonth(1).minusDays(1);
             start = end.withDayOfMonth(1);
             period = "previous_month";
-        } else if (normalizedQuestion.matches(".*\\b(esta semana|semana atual)\\b.*")) {
+        } else if (normalizedQuestion.matches(".*\\b(esta semana|essa semana|nesta semana|nessa semana|semana atual|semana corrente)\\b.*")) {
             start = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
             end = today;
             period = "current_week";
+        } else if (normalizedQuestion.matches(".*\\b(semana passada|semana anterior)\\b.*")) {
+            end = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusDays(1);
+            start = end.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            period = "previous_week";
+        } else if (normalizedQuestion.matches(".*\\b(este ano|esse ano|neste ano|nesse ano|ano atual|ano corrente)\\b.*")) {
+            start = today.withDayOfYear(1);
+            end = today;
+            period = "current_year";
+        } else if (normalizedQuestion.matches(".*\\b(ano passado|ano anterior)\\b.*")) {
+            start = today.withDayOfYear(1).minusYears(1);
+            end = start.withDayOfYear(start.lengthOfYear());
+            period = "previous_year";
         } else if (normalizedQuestion.matches(".*\\b(ontem)\\b.*")) {
             start = today.minusDays(1);
             end = start;
@@ -120,7 +143,18 @@ public class MetricSelector {
             end = today;
             period = "today";
         } else {
-            return selection;
+            Month mentionedMonth = findPortugueseMonth(normalizedQuestion);
+            if (mentionedMonth == null) {
+                return selection;
+            }
+            int year = normalizedQuestion.matches(".*\\b(?:19|20)\\d{2}\\b.*")
+                    ? Integer.parseInt(normalizedQuestion.replaceAll(".*\\b((?:19|20)\\d{2})\\b.*", "$1"))
+                    : normalizedQuestion.matches(".*\\b(ano passado|ano anterior)\\b.*")
+                            ? today.getYear() - 1
+                            : today.getYear();
+            start = LocalDate.of(year, mentionedMonth, 1);
+            end = start.withDayOfMonth(start.lengthOfMonth());
+            period = "explicit_month";
         }
 
         MetricDescriptor descriptor = catalog.stream()
@@ -140,6 +174,27 @@ public class MetricSelector {
         LOGGER.info("Relative date range resolved | metricName={} | period={} | start={} | end={}",
                 selection.metricName(), period, start, end);
         return new MetricSelection(selection.metricName(), params);
+    }
+
+    private Month findPortugueseMonth(String normalizedQuestion) {
+        Map<String, Month> months = Map.ofEntries(
+                Map.entry("janeiro", Month.JANUARY),
+                Map.entry("fevereiro", Month.FEBRUARY),
+                Map.entry("marco", Month.MARCH),
+                Map.entry("abril", Month.APRIL),
+                Map.entry("maio", Month.MAY),
+                Map.entry("junho", Month.JUNE),
+                Map.entry("julho", Month.JULY),
+                Map.entry("agosto", Month.AUGUST),
+                Map.entry("setembro", Month.SEPTEMBER),
+                Map.entry("outubro", Month.OCTOBER),
+                Map.entry("novembro", Month.NOVEMBER),
+                Map.entry("dezembro", Month.DECEMBER));
+        return months.entrySet().stream()
+                .filter(entry -> normalizedQuestion.matches(".*\\b" + entry.getKey() + "\\b.*"))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(null);
     }
 
     private SelectionParseResult parseSelectionWithReason(

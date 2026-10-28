@@ -197,7 +197,8 @@ public class MetricCatalogConfig {
                 """,
                 List.of(
                     new MetricParam("data_inicio", ParamType.DATE, true, "Data inicial (inclusive)"),
-                    new MetricParam("data_fim",    ParamType.DATE, true, "Data final (inclusive)")
+                    new MetricParam("data_fim",    ParamType.DATE, true, "Data final (inclusive)"),
+                    new MetricParam("grupo", ParamType.STRING, false, "Nome do grupo (opcional)")
                 ),
                 """
                 SELECT COALESCE(g.name, 'Sem grupo') AS grupo,
@@ -210,6 +211,7 @@ public class MetricCatalogConfig {
                 WHERE t.property_id = :propertyId
                   AND t.date BETWEEN :dataInicio AND :dataFim
                   AND c.type = 'debit'
+                  AND (:grupo IS NULL OR g.name = :grupo)
                 GROUP BY g.id, g.name
                 ORDER BY total DESC
                 """,

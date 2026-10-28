@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -87,5 +88,70 @@ class MetricSelectorTest {
                                 "data_inicio", today.withDayOfMonth(1).toString(),
                                 "data_fim", today.toString(),
                                 "categoria", "Mercado")));
+    }
+
+    @Test
+    void currentDateAndRelativePeriodRulesAreIncludedInPrompt() {
+        when(responseSpec.content()).thenReturn(
+                "{\"metric\":\"total_gasto_por_categoria\",\"params\":{}}");
+        MetricSelector fixedSelector = selectorAt(LocalDate.of(2026, 10, 28));
+
+        fixedSelector.trySelect("Quanto gastei este ano?", catalog);
+
+        verify(requestSpec).system((String) argThat((String prompt) ->
+                prompt.contains("Data atual: 2026-10-28")
+                        && prompt.contains("\"este ano\"")
+                        && prompt.contains("\"esta semana\"")
+                        && prompt.contains("mês mencionado sem ano")));
+    }
+
+    @Test
+    void currentYearDatesAreResolvedByApplicationInsteadOfModel() {
+        when(responseSpec.content()).thenReturn(
+                "{\"metric\":\"total_gasto_por_categoria\",\"params\":{" +
+                        "\"data_inicio\":\"2025-01-01\",\"data_fim\":\"2025-12-31\"}}");
+
+        assertThat(selectorAt(LocalDate.of(2026, 10, 28))
+                .trySelect("Quanto gastei este ano?", catalog))
+                .contains(new MetricSelection(
+                        "total_gasto_por_categoria",
+                        Map.of(
+                                "data_inicio", "2026-01-01",
+                                "data_fim", "2026-10-28")));
+    }
+
+    @Test
+    void currentWeekDatesAreResolvedByApplicationInsteadOfModel() {
+        when(responseSpec.content()).thenReturn(
+                "{\"metric\":\"total_gasto_por_categoria\",\"params\":{" +
+                        "\"data_inicio\":\"2025-10-01\",\"data_fim\":\"2025-10-31\"}}");
+
+        assertThat(selectorAt(LocalDate.of(2026, 10, 28))
+                .trySelect("Quanto gastei nesta semana?", catalog))
+                .contains(new MetricSelection(
+                        "total_gasto_por_categoria",
+                        Map.of(
+                                "data_inicio", "2026-10-26",
+                                "data_fim", "2026-10-28")));
+    }
+
+    @Test
+    void monthWithoutYearUsesCurrentYearAndFullCalendarMonth() {
+        when(responseSpec.content()).thenReturn(
+                "{\"metric\":\"total_gasto_por_categoria\",\"params\":{" +
+                        "\"data_inicio\":\"2025-10-01\",\"data_fim\":\"2025-10-31\"}}");
+
+        assertThat(selectorAt(LocalDate.of(2026, 10, 28))
+                .trySelect("Quanto gastei em outubro?", catalog))
+                .contains(new MetricSelection(
+                        "total_gasto_por_categoria",
+                        Map.of(
+                                "data_inicio", "2026-10-01",
+                                "data_fim", "2026-10-31")));
+    }
+
+    private MetricSelector selectorAt(LocalDate date) {
+        Clock fixedClock = Clock.fixed(date.atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneOffset.UTC);
+        return new MetricSelector(chatClient, objectMapper, fixedClock);
     }
 }

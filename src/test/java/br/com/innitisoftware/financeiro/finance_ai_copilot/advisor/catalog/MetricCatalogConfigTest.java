@@ -31,7 +31,7 @@ class MetricCatalogConfigTest {
 
         assertThat(groupExpenses.params())
                 .extracting(param -> param.name())
-                .containsExactly("data_inicio", "data_fim");
+                .containsExactly("data_inicio", "data_fim", "grupo");
         assertThat(groupExpenses.sql())
                 .contains("t.property_id = :propertyId", "c.type = 'debit'", "LEFT JOIN `groups`");
     }
