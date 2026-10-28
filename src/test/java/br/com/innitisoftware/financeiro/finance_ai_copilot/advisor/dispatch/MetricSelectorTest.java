@@ -38,6 +38,10 @@ class MetricSelectorTest {
             List.of(
                     new ParamDescriptor("data_inicio", ParamType.DATE, true, "Data inicial"),
                     new ParamDescriptor("data_fim", ParamType.DATE, true, "Data final"))));
+    private final List<MetricDescriptor> balanceCatalog = List.of(new MetricDescriptor(
+            "saldo_por_conta",
+            "Saldo líquido acumulado por conta até uma data de referência.",
+            List.of(new ParamDescriptor("data_referencia", ParamType.DATE, false, "Data de referência"))));
 
     @BeforeEach
     void setUp() {
@@ -148,6 +152,29 @@ class MetricSelectorTest {
                         Map.of(
                                 "data_inicio", "2026-10-01",
                                 "data_fim", "2026-10-31")));
+    }
+
+    @Test
+    void balanceWithoutReferenceDateDefaultsToToday() {
+        when(responseSpec.content()).thenReturn("{\"metric\":\"saldo_por_conta\",\"params\":{}}");
+
+        assertThat(selectorAt(LocalDate.of(2026, 10, 26))
+                .trySelect("Como está o saldo da conta corrente?", balanceCatalog))
+                .contains(new MetricSelection(
+                        "saldo_por_conta",
+                        Map.of("data_referencia", "2026-10-26")));
+    }
+
+    @Test
+    void balanceYesterdayIsResolvedAgainstInjectedClock() {
+        when(responseSpec.content()).thenReturn(
+                "{\"metric\":\"saldo_por_conta\",\"params\":{\"data_referencia\":\"2026-10-26\"}}");
+
+        assertThat(selectorAt(LocalDate.of(2026, 10, 26))
+                .trySelect("Saldo da poupança ontem", balanceCatalog))
+                .contains(new MetricSelection(
+                        "saldo_por_conta",
+                        Map.of("data_referencia", "2026-10-25")));
     }
 
     private MetricSelector selectorAt(LocalDate date) {

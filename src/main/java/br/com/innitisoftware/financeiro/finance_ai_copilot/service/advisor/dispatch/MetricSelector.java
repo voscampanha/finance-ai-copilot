@@ -106,6 +106,25 @@ public class MetricSelector {
                 .replaceAll("\\p{M}", "")
                 .toLowerCase(Locale.ROOT);
         LocalDate today = LocalDate.now(clock);
+        MetricDescriptor descriptor = catalog.stream()
+                .filter(metric -> metric.name().equals(selection.metricName()))
+                .findFirst()
+                .orElse(null);
+        if (descriptor != null && descriptor.params().stream()
+                .anyMatch(param -> param.name().equals("data_referencia"))) {
+            Map<String, Object> params = new LinkedHashMap<>(selection.params());
+            Object referenceDate = params.get("data_referencia");
+            if (normalizedQuestion.matches(".*\\bontem\\b.*")) {
+                referenceDate = today.minusDays(1).toString();
+            } else if (normalizedQuestion.matches(".*\\bhoje\\b.*") || referenceDate == null) {
+                referenceDate = today.toString();
+            }
+            params.put("data_referencia", referenceDate);
+            LOGGER.info("Reference date resolved | metricName={} | referenceDate={}",
+                    selection.metricName(), referenceDate);
+            return new MetricSelection(selection.metricName(), params);
+        }
+
         LocalDate start;
         LocalDate end;
         String period;
@@ -157,10 +176,6 @@ public class MetricSelector {
             period = "explicit_month";
         }
 
-        MetricDescriptor descriptor = catalog.stream()
-                .filter(metric -> metric.name().equals(selection.metricName()))
-                .findFirst()
-                .orElse(null);
         if (descriptor == null || descriptor.params().stream()
                 .noneMatch(param -> param.name().equals("data_inicio"))
                 || descriptor.params().stream()

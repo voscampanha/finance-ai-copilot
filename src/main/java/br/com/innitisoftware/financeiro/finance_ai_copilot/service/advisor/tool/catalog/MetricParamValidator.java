@@ -15,6 +15,7 @@ public class MetricParamValidator {
     private static final Map<String, String> SNAKE_TO_CAMEL = Map.of(
         "data_inicio", "dataInicio",
         "data_fim",    "dataFim",
+        "data_referencia", "dataReferencia",
         "categoria",   "categoria"
     );
 

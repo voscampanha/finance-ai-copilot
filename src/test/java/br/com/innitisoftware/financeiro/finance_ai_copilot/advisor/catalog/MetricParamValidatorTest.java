@@ -51,7 +51,18 @@ class MetricParamValidatorTest {
     void acceptsOptionalNullValue() {
         Map<String, Object> params = validator.validate(metric(), Map.of("data_inicio", "2026-10-01"));
 
-        assertThat(params).containsEntry("categoria", null);
+        assertThat(params)
+                .containsEntry("categoria", null)
+                .containsEntry("dataReferencia", null);
+    }
+
+    @Test
+    void convertsOptionalReferenceDateToCamelCaseAndDateType() {
+        Map<String, Object> params = validator.validate(metric(), Map.of(
+                "data_inicio", "2026-10-01",
+                "data_referencia", "2026-10-25"));
+
+        assertThat(params).containsEntry("dataReferencia", LocalDate.of(2026, 10, 25));
     }
 
 
@@ -61,6 +72,7 @@ class MetricParamValidatorTest {
                 "description",
                 List.of(
                         new MetricParam("data_inicio", ParamType.DATE, true, "start"),
+                        new MetricParam("data_referencia", ParamType.DATE, false, "reference date"),
                         new MetricParam("quantidade", ParamType.LONG, false, "count"),
                         new MetricParam("limite", ParamType.DECIMAL, false, "amount"),
                         new MetricParam("categoria", ParamType.STRING, false, "category")),

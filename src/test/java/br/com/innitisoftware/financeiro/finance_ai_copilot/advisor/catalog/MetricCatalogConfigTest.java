@@ -24,10 +24,13 @@ class MetricCatalogConfigTest {
         assertThat(monthlyAverage.sql())
                 .contains("t.property_id = :propertyId", "c.type = 'debit'", "PERIOD_DIFF");
 
-        assertThat(accountBalance.params()).isEmpty();
+        assertThat(accountBalance.params())
+                .extracting(param -> param.name())
+                .containsExactly("data_referencia");
         assertThat(accountBalance.description()).contains("saldo inicial");
         assertThat(accountBalance.sql())
-                .contains("fa.property_id = :propertyId", "WHEN c.type = 'credit'", "WHEN c.type = 'debit'");
+                .contains("fa.property_id = :propertyId", "WHEN c.type = 'credit'", "WHEN c.type = 'debit'",
+                        "t.date <= :dataReferencia");
 
         assertThat(groupExpenses.params())
                 .extracting(param -> param.name())

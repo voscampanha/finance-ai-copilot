@@ -137,25 +137,27 @@ public class MetricCatalogConfig {
                 "saldo_por_conta",
                 """
                 Retorna a variação líquida acumulada por conta (créditos menos débitos),
-                sem restringir a um período. Retorna uma linha por conta, inclusive contas
-                sem lançamentos. Não representa o saldo bancário real, pois não considera
-                o saldo inicial.
+                até a data de referência informada (ou até hoje, se omitida). Retorna uma
+                linha por conta, inclusive contas sem lançamentos até essa data. Não
+                representa o saldo bancário real, pois não considera o saldo inicial.
 
-                USE QUANDO o usuário pergunta a movimentação líquida acumulada de cada conta:
+                USE QUANDO o usuário pergunta o saldo acumulado de cada conta em uma data:
                 - "qual o saldo acumulado por conta"
-                - "quanto entrou e saiu de cada conta"
-                - "como está a variação líquida das minhas contas"
+                - "como está o saldo da conta corrente"
+                - "saldo da poupança ontem"
 
                 NÃO USE QUANDO:
                 - o usuário pede o saldo bancário real → esta métrica não considera saldo inicial
-                - o usuário pede a movimentação em um período específico → use text-to-SQL
                 - o usuário pede o total de despesas por categoria ou grupo → use
                 `total_gasto_por_categoria` ou `gastos_por_grupo`
 
-                PALAVRAS: saldo por conta, movimentação líquida, créditos menos débitos,
-                variação acumulada.
+                PALAVRAS: saldo por conta, saldo da conta, movimentação líquida,
+                créditos menos débitos, variação acumulada.
                 """,
-                List.of(),
+                List.of(
+                    new MetricParam("data_referencia", ParamType.DATE, false,
+                        "Data de referência (inclusive); se omitida, considera hoje")
+                ),
                 """
                 SELECT fa.name AS conta,
                        COALESCE(SUM(
@@ -168,6 +170,7 @@ public class MetricCatalogConfig {
                 FROM finance_accounts fa
                 LEFT JOIN transactions t ON t.finance_account_id = fa.id
                                          AND t.property_id = fa.property_id
+                                         AND (:dataReferencia IS NULL OR t.date <= :dataReferencia)
                 LEFT JOIN categories c ON c.id = t.category_id
                                        AND c.property_id = fa.property_id
                 WHERE fa.property_id = :propertyId
