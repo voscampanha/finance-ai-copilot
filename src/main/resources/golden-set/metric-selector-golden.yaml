@@ -124,9 +124,9 @@ cases:
   # ---- LIMITAÇÃO CONHECIDA ----
   - id: limitacao-filtro-negativo
     pergunta: "Quanto gastei no total em outubro, sem contar mercado?"
-    metricaEsperada: total_gasto_por_categoria
-    paramsEsperados: { data_inicio: "2026-10-01", data_fim: "2026-10-31" }
-    justificativa: "Catálogo não suporta exclusão de categoria; a métrica de soma ainda é a mais próxima. Ver nota de manutenção — se suportar 'excluir_categoria' no futuro, atualizar este caso."
+    metricaEsperada: "__none__"
+    paramsEsperados: {}
+    justificativa: "Exclusão de categoria não é parametrizável; preferível cair no Text-to-SQL a retornar total incluindo mercado (resposta silenciosamente errada)."
 
   - id: relativa-saldo-sem-data
     pergunta: "Qual o saldo da minha conta?"

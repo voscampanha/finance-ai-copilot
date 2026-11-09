@@ -63,6 +63,21 @@ public class MetricSelector {
                             Um mês mencionado sem ano refere-se ao ano da data atual; nesse caso,
                             use o mês calendário completo. Se a pergunta informar o ano, respeite-o.
                             Para parâmetros de data, use o formato ISO YYYY-MM-DD.
+                            REGRAS DE REJEIÇÃO (retorne {"metric": "__none__"} se qualquer uma for verdadeira):
+                                1. A pergunta pede um parâmetro obrigatório que NÃO está explícito na frase.
+                                Ex: "qual meu maior gasto" (sem período) — maior_lancamento exige data_inicio/fim.
+                                2. A pergunta pede filtro negativo ("sem contar X", "exceto Y", "menos Z")
+                                e nenhuma métrica tem parâmetro de exclusão.
+                                3. A pergunta pede agrupamento por dimensão que nenhuma métrica cobre
+                                (ex: "por grupo" quando só existe "por categoria", ou "por dia" quando
+                                só existe "por mês").
+                                4. A pergunta pede agregação que nenhuma métrica faz (ex: COUNT, AVG)
+                                quando só existem SUM/MAX/LAST.
+                                5. A pergunta pede listagem ("liste", "quais foram", "mostre todos")
+                                quando nenhuma métrica retorna lista.
+
+                                NUNCA invente valores para parâmetros obrigatórios. Se não estão na pergunta,
+                                retorne __none__.
                             Responda APENAS JSON, sem texto adicional.
                             Catálogo:
                             %2$s
